@@ -82,6 +82,14 @@ Route::prefix('v1')->group(function () {
             Route::get('establishments/stats', App\Http\Controllers\API\EstablishmentStatsController::class);
             Route::get('establishments', App\Http\Controllers\API\EstablishmentListController::class);
 
+            /** Cabeçalho do Next — inbox ainda pode ser expandido (evita 404 em chamadas paralelas). */
+            Route::get('notifications/inbox', fn () => response()->json([
+                'message' => '',
+                'data' => ['items' => [], 'unread_count' => 0],
+            ]));
+            Route::post('notifications/dismiss', fn () => response()->json(['message' => '', 'data' => null]));
+            Route::post('notifications/dismiss-all', fn () => response()->json(['message' => '', 'data' => null]));
+
             Route::prefix('admin')->group(function () {
                 Route::get('store-settings', [App\Http\Controllers\API\Admin\StoreSettingController::class, 'show']);
                 Route::put('store-settings', [App\Http\Controllers\API\Admin\StoreSettingController::class, 'update']);
