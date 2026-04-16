@@ -287,3 +287,23 @@ Repositório à parte (ou pasta ignorada no Git da API). Variáveis em **`.env.l
 | `NEXT_PUBLIC_APP_TOKEN` | `gplace-local-frontend` (dev) ou `stores.app_token` | Em **local**, o seeder `LocalDevStoreSeeder` cria uma loja com token fixo `gplace-local-frontend` e liga ao `admin@gooding.solutions`. O `next dev` usa esse valor por omissão. Em produção, usar o token real da loja. |
 
 O cliente HTTP em `frontend-api-gplace/lib/api.ts` define `Authorization: Bearer` após login (Passport) e o header `app` a partir de `NEXT_PUBLIC_APP_TOKEN`.
+
+### Produção: obter ou regenerar o `app_token`
+
+No servidor (SSH), na pasta da API:
+
+```bash
+# Ver lojas e tokens actuais (sem alterar)
+php artisan store:issue-app-token --show
+
+# Gerar um token novo para a primeira loja (pede confirmação se já existir token)
+php artisan store:issue-app-token
+
+# Gerar para a loja com id 1
+php artisan store:issue-app-token 1
+
+# Regenerar sem pergunta interactiva (útil em CI / scripts)
+php artisan store:issue-app-token 1 --force
+```
+
+O comando imprime a linha `NEXT_PUBLIC_APP_TOKEN=...` para copiares para o Vercel e fazer **redeploy** do frontend. Regenerar invalida o valor anterior até actualizares o deploy.
