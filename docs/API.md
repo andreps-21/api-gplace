@@ -290,6 +290,16 @@ O cliente HTTP em `frontend-api-gplace/lib/api.ts` define `Authorization: Bearer
 
 ### Produção: obter ou regenerar o `app_token`
 
+Se **`stores` estiver vazia** (primeiro deploy), cria tenant + loja + token ligado ao utilizador admin:
+
+```bash
+php artisan store:bootstrap
+# ou outro utilizador já existente na BD:
+php artisan store:bootstrap email@empresa.com
+```
+
+Requer pelo menos um **User** com **person** (ex.: `UserSeeder`). Depois copia `NEXT_PUBLIC_APP_TOKEN` para o Vercel.
+
 No servidor (SSH), na pasta da API:
 
 ```bash

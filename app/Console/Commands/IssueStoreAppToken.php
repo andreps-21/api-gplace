@@ -33,7 +33,8 @@ class IssueStoreAppToken extends Command
         }
 
         if (!$store) {
-            $this->error('Nenhuma loja na tabela stores. Cria uma loja (ou importa dados) antes de emitir token.');
+            $this->error('Nenhuma loja na tabela stores.');
+            $this->comment('Cria a primeira loja: php artisan store:bootstrap');
 
             return self::FAILURE;
         }
@@ -69,6 +70,8 @@ class IssueStoreAppToken extends Command
 
         if ($stores->isEmpty()) {
             $this->warn('Nenhuma loja na tabela stores.');
+            $this->newLine();
+            $this->comment('Cria a primeira loja (produção ou qualquer ambiente): php artisan store:bootstrap');
 
             return self::FAILURE;
         }
