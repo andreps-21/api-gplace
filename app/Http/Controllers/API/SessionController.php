@@ -5,7 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use RuntimeException;
@@ -27,58 +27,74 @@ class SessionController extends BaseController
 
         $inputs = $request->all();
 
+        /*
+         * Não usar Auth::attempt() aqui: o guard `web` grava sessão (SessionGuard::login),
+         * mas as rotas `api/*` não carregam StartSession — em produção isso provoca 500
+         * ("Session store not set on request"). Validação manual + Passport token.
+         */
+        $user = User::where('email', $inputs['email'])->first();
 
-        if (Auth::attempt(array('email' => $inputs['email'], 'password' => $inputs['password']))) {
-            $id = Auth::id();
+        if (! $user || ! Hash::check($inputs['password'], $user->password)) {
+            return $this->sendError('Email ou senha inválidos', [], 401);
+        }
 
-            $user = User::with('people.city.state', 'stores')->find($id);
+        $user->load(['people.city.state', 'stores']);
+        $user->loadMissing(['roles.permissions', 'permissions']);
 
-            $user->loadMissing(['roles.permissions', 'permissions']);
+        try {
             $user->setAttribute(
                 'permissions',
                 $user->getAllPermissions()->pluck('name')->unique()->values()->all()
             );
-
-            if(!$user->is_enabled){
-                return $this->sendError('Usuário bloqueado, favor contactar a loja.', [], 401);
-            }
-
-            $store = $request->get('store')['id'];
-
-            if (!$user->stores->contains($store)) {
-                return $this->sendError('Usuário não cadastrado nessa loja.', [], 401);
-            }
-
-            try {
-                // Nome curto do token (Passport); não usar APP_KEY como nome.
-                $token = $user->createToken('gplace-session');
-            } catch (RuntimeException $e) {
-                Log::error('Passport personal access client em falta ou chaves OAuth inválidas.', [
-                    'exception' => $e->getMessage(),
-                ]);
-
-                return $this->sendError(
-                    'Autenticação por token indisponível no servidor. Executa `php artisan passport:install` (ou migrações Passport) e confirma `storage/oauth-*.key`.',
-                    [],
-                    503
-                );
-            } catch (Throwable $e) {
-                Log::error('Erro ao emitir token Passport no login.', ['exception' => $e]);
-
-                return $this->sendError(
-                    'Não foi possível concluir o login. Verifica os logs do servidor (Passport / chaves OAuth).',
-                    [],
-                    503
-                );
-            }
-
-            return $this->sendResponse([
-                'user' => $user,
-                'token' => $token->accessToken
-            ], "Login successfully.");
-        } else {
-            return $this->sendError('Email ou senha inválidos', [], 401);
+        } catch (Throwable $e) {
+            Log::warning('getAllPermissions falhou no login; a continuar sem lista.', [
+                'user_id' => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+            $user->setAttribute('permissions', []);
         }
+
+        if (! $user->is_enabled) {
+            return $this->sendError('Usuário bloqueado, favor contactar a loja.', [], 401);
+        }
+
+        $storeContext = $request->get('store');
+        if (! is_array($storeContext) || empty($storeContext['id'])) {
+            return $this->sendError('Contexto da loja inválido.', [], 500);
+        }
+
+        $storeId = (int) $storeContext['id'];
+
+        if (! $user->stores->contains($storeId)) {
+            return $this->sendError('Usuário não cadastrado nessa loja.', [], 401);
+        }
+
+        try {
+            $token = $user->createToken('gplace-session');
+        } catch (RuntimeException $e) {
+            Log::error('Passport personal access client em falta ou chaves OAuth inválidas.', [
+                'exception' => $e->getMessage(),
+            ]);
+
+            return $this->sendError(
+                'Autenticação por token indisponível no servidor. Executa `php artisan passport:install` (ou migrações Passport) e confirma `storage/oauth-*.key`.',
+                [],
+                503
+            );
+        } catch (Throwable $e) {
+            Log::error('Erro ao emitir token Passport no login.', ['exception' => $e]);
+
+            return $this->sendError(
+                'Não foi possível concluir o login. Verifica os logs do servidor (Passport / chaves OAuth).',
+                [],
+                503
+            );
+        }
+
+        return $this->sendResponse([
+            'user' => $user,
+            'token' => $token->accessToken,
+        ], 'Login successfully.');
     }
 
     public function destroy(Request $request)

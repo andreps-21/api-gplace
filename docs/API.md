@@ -258,7 +258,7 @@ Para detalhes de *body* (campos obrigatórios), a fonte de verdade são as regra
 
 ## 10. OAuth / Passport no ambiente
 
-O login em `POST /api/v1/auth/login` chama `$user->createToken(...)` (Passport). **Sem infraestrutura Passport completa o servidor devolve HTTP 500.**
+O login em `POST /api/v1/auth/login` valida email/password com `Hash::check` (não usa `Auth::attempt` do guard `web`, porque as rotas `api/*` não têm sessão e isso gerava 500). Em seguida chama `$user->createToken(...)` (Passport). **Sem infraestrutura Passport completa o servidor devolve HTTP 500 ou 503.**
 
 No servidor (após `composer install` e `.env` com base de dados):
 
