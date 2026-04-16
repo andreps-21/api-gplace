@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             DefenderSeeder::class,
             UserSeeder::class,
             ParameterSeeder::class,
+            LocalDevStoreSeeder::class,
         ]);
     }
 }

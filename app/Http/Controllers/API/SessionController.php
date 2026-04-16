@@ -30,6 +30,12 @@ class SessionController extends BaseController
 
             $user = User::with('people.city.state', 'stores')->find($id);
 
+            $user->loadMissing(['roles.permissions', 'permissions']);
+            $user->setAttribute(
+                'permissions',
+                $user->getAllPermissions()->pluck('name')->unique()->values()->all()
+            );
+
             if(!$user->is_enabled){
                 return $this->sendError('Usuário bloqueado, favor contactar a loja.', [], 401);
             }

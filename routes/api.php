@@ -65,6 +65,97 @@ Route::prefix('v1')->group(function () {
         Route::middleware('auth:api')->group(function () {
             Route::apiResource('orders', App\Http\Controllers\API\OrderController::class)->only(['index', 'show', 'store']);
             Route::apiResource('addresses', App\Http\Controllers\API\AddressController::class);
+
+            Route::get('dashboard/stats', [App\Http\Controllers\API\DashboardController::class, 'stats']);
+            Route::get('dashboard/faturamento', [App\Http\Controllers\API\DashboardController::class, 'faturamento']);
+            Route::get('sales', App\Http\Controllers\API\SalesListController::class);
+            Route::get('establishments', App\Http\Controllers\API\EstablishmentListController::class);
+
+            Route::prefix('admin')->group(function () {
+                Route::get('store-settings', [App\Http\Controllers\API\Admin\StoreSettingController::class, 'show']);
+                Route::put('store-settings', [App\Http\Controllers\API\Admin\StoreSettingController::class, 'update']);
+
+                Route::get('parameters', [App\Http\Controllers\API\Admin\ParameterController::class, 'index']);
+                Route::post('parameters', [App\Http\Controllers\API\Admin\ParameterController::class, 'store']);
+                Route::get('parameters/{id}', [App\Http\Controllers\API\Admin\ParameterController::class, 'show']);
+                Route::put('parameters/{id}', [App\Http\Controllers\API\Admin\ParameterController::class, 'update']);
+                Route::delete('parameters/{id}', [App\Http\Controllers\API\Admin\ParameterController::class, 'destroy']);
+
+                Route::get('store-users', App\Http\Controllers\API\Admin\StoreUserListController::class);
+                Route::post('store-users/attach', [App\Http\Controllers\API\Admin\StoreUserPivotController::class, 'attach']);
+                Route::delete('store-users/detach/{userId}', [App\Http\Controllers\API\Admin\StoreUserPivotController::class, 'detach']);
+
+                Route::get('store-roles', App\Http\Controllers\API\Admin\StoreRoleListController::class);
+                Route::get('store-roles/{id}', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'show']);
+                Route::put('store-roles/{id}/permissions', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'syncPermissions']);
+                Route::get('permissions', App\Http\Controllers\API\Admin\PermissionListController::class);
+                Route::get('product-form-meta', App\Http\Controllers\API\Admin\ProductFormMetaController::class);
+
+                Route::get('store-faqs', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'index']);
+                Route::post('store-faqs', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'store']);
+                Route::get('store-faqs/{id}', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'show']);
+                Route::put('store-faqs/{id}', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'update']);
+                Route::delete('store-faqs/{id}', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'destroy']);
+
+                Route::get('store-catalogs', [App\Http\Controllers\API\Admin\StoreCatalogController::class, 'index']);
+                Route::post('store-catalogs', [App\Http\Controllers\API\Admin\StoreCatalogController::class, 'store']);
+                Route::get('store-catalogs/{id}', [App\Http\Controllers\API\Admin\StoreCatalogController::class, 'show']);
+                Route::put('store-catalogs/{id}', [App\Http\Controllers\API\Admin\StoreCatalogController::class, 'update']);
+                Route::delete('store-catalogs/{id}', [App\Http\Controllers\API\Admin\StoreCatalogController::class, 'destroy']);
+
+                Route::get('tokens', [App\Http\Controllers\API\Admin\TokenAdminController::class, 'index']);
+                Route::post('tokens', [App\Http\Controllers\API\Admin\TokenAdminController::class, 'store']);
+                Route::get('tokens/{id}', [App\Http\Controllers\API\Admin\TokenAdminController::class, 'show']);
+                Route::put('tokens/{id}', [App\Http\Controllers\API\Admin\TokenAdminController::class, 'update']);
+                Route::delete('tokens/{id}', [App\Http\Controllers\API\Admin\TokenAdminController::class, 'destroy']);
+
+                Route::get('tenants', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'index']);
+                Route::get('tenants/{id}', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'show']);
+                Route::put('tenants/{id}', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'update']);
+
+                Route::get('customers', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'index']);
+                Route::post('customers', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'store']);
+                Route::get('customers/{id}', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'show']);
+                Route::put('customers/{id}', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'update']);
+                Route::delete('customers/{id}', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'destroy']);
+
+                Route::get('leads', [App\Http\Controllers\API\Admin\LeadAdminController::class, 'index']);
+                Route::post('leads', [App\Http\Controllers\API\Admin\LeadAdminController::class, 'store']);
+                Route::get('leads/{id}', [App\Http\Controllers\API\Admin\LeadAdminController::class, 'show']);
+                Route::put('leads/{id}', [App\Http\Controllers\API\Admin\LeadAdminController::class, 'update']);
+                Route::delete('leads/{id}', [App\Http\Controllers\API\Admin\LeadAdminController::class, 'destroy']);
+
+                Route::get('stores', [App\Http\Controllers\API\Admin\StoreAdminController::class, 'index']);
+                Route::post('stores', [App\Http\Controllers\API\Admin\StoreAdminController::class, 'store']);
+                Route::get('stores/{id}', [App\Http\Controllers\API\Admin\StoreAdminController::class, 'show']);
+                Route::put('stores/{id}', [App\Http\Controllers\API\Admin\StoreAdminController::class, 'update']);
+                Route::delete('stores/{id}', [App\Http\Controllers\API\Admin\StoreAdminController::class, 'destroy']);
+
+                Route::get('salesmen', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'index']);
+                Route::post('salesmen', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'store']);
+                Route::get('salesmen/{id}', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'show']);
+                Route::put('salesmen/{id}', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'update']);
+                Route::delete('salesmen/{id}', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'destroy']);
+
+                Route::get('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'index']);
+                Route::post('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'store']);
+                Route::get('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'show']);
+                Route::put('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'update']);
+                Route::delete('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'destroy']);
+
+                Route::get('warehouses', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'index']);
+                Route::post('warehouses', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'store']);
+                Route::get('stock-movements', [App\Http\Controllers\API\Admin\StockMovementAdminController::class, 'index']);
+                Route::get('stock-lots', [App\Http\Controllers\API\Admin\StockLotAdminController::class, 'index']);
+                Route::post('stock-lots', [App\Http\Controllers\API\Admin\StockLotAdminController::class, 'store']);
+
+                Route::get('orders', [App\Http\Controllers\API\Admin\OrderAdminController::class, 'index']);
+                Route::get('orders/{id}', [App\Http\Controllers\API\Admin\OrderAdminController::class, 'show']);
+
+                Route::apiResource('sections', App\Http\Controllers\Integration\SectionController::class);
+                Route::apiResource('brands', App\Http\Controllers\Integration\BrandController::class);
+                Route::apiResource('measurement-units', App\Http\Controllers\Integration\MeasurementUnitController::class);
+            });
         });
     });
 

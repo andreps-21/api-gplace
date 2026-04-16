@@ -45,13 +45,13 @@
             letter-spacing: 0.05rem;
             padding: 0.75rem 1rem;
             border-radius: 2rem;
-            background: #364461;
-            border-color: #445579;
+            background: #2f3a8f;
+            border-color: #262f73;
         }
 
         .btn-login:hover {
-            background: #445579;
-            border-color: #445579;
+            background: #262f73;
+            border-color: #2f3a8f;
         }
 
         .form-label-group {

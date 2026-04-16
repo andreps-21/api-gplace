@@ -33,8 +33,10 @@ class CheckAppHeader
             ], 403);
         }
 
-        $request->attributes->add(['store' => $store->toArray()]);
-
+        $storeArr = $store->toArray();
+        $request->attributes->add(['store' => $storeArr]);
+        // Compatibilidade com controladores que usam $request->get('store') em vez de attributes.
+        $request->merge(['store' => $storeArr]);
 
         return $next($request);
     }

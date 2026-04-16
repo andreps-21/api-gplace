@@ -38,7 +38,7 @@ class Product extends Model
         'formula', 'application_mode', 'dosage',
         'lack', 'other_information', 'rating',
         'is_enabled', 'sync_at', 'section_id',
-        'type', 'quantity', 'type_sale', 'is_grid',
+        'type', 'quantity', 'min_stock', 'type_sale', 'is_grid',
         'description_reference', 'store_id', 'specification',
         'external_id'
     ];
@@ -169,6 +169,16 @@ class Product extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class, 'section_id');
+    }
+
+    public function stockLots(): HasMany
+    {
+        return $this->hasMany(StockLot::class);
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
     }
 
     /**

@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Actions\CreditCardPaymentAction;
 use App\Mail\SendContractorMail;
 use App\Models\Setting;
+use App\Models\StockMovement;
+use App\Services\Stock\StockMovementService;
 
 class OrderController extends BaseController
 {
@@ -128,6 +130,39 @@ class OrderController extends BaseController
             DB::beginTransaction();
             $storeId = $request->get('store')['id'];
             $inputs = $request->all();
+            $stockMovementService = app(StockMovementService::class);
+
+            $qtyByProduct = [];
+            foreach ($request->items as $item) {
+                $pid = (int) $item['product_id'];
+                $qty = (float) $item['quantity'];
+                $qtyByProduct[$pid] = ($qtyByProduct[$pid] ?? 0) + $qty;
+            }
+
+            foreach ($qtyByProduct as $productId => $needed) {
+                $product = Product::query()
+                    ->where('store_id', $storeId)
+                    ->where('id', $productId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $product) {
+                    DB::rollBack();
+
+                    return $this->sendError('Produto não encontrado nesta loja.', [], 422);
+                }
+
+                if ((float) $product->quantity < $needed) {
+                    DB::rollBack();
+
+                    return $this->sendError(
+                        'Estoque insuficiente para «'.$product->commercial_name.'». Disponível: '.(int) $product->quantity.'.',
+                        ['product_id' => $productId, 'available' => (int) $product->quantity, 'requested' => $needed],
+                        422
+                    );
+                }
+            }
+
             $inputs['code'] = str_pad(rand(0, '9' . round(microtime(true))), 11, "0", STR_PAD_LEFT);
             $inputs['code_payment'] = uniqid();
             $inputs['status'] = 1;
@@ -145,7 +180,26 @@ class OrderController extends BaseController
                 $item['icms'] = 0;
                 $item['ipi'] = 0;
 
-                Product::where('id', $item['product_id'])->decrement('quantity', $item['quantity']);
+                $pid = (int) $item['product_id'];
+                $soldQty = (float) $item['quantity'];
+
+                Product::where('store_id', $storeId)->where('id', $pid)->decrement('quantity', $soldQty);
+
+                $lineProduct = Product::query()->where('store_id', $storeId)->where('id', $pid)->first();
+                if ($lineProduct) {
+                    $delta = - (int) round($soldQty);
+                    $stockMovementService->record(
+                        $storeId,
+                        $pid,
+                        $delta,
+                        (int) $lineProduct->quantity,
+                        StockMovement::TYPE_ORDER_SALE,
+                        null,
+                        $order->id,
+                        null,
+                        null
+                    );
+                }
 
                 $order->items()->create($item);
             }

@@ -19,7 +19,17 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    /*
+    | Origens permitidas (lista separada por vírgulas no .env: CORS_ALLOWED_ORIGINS).
+    | Por omissão: frontend em produção + Next em desenvolvimento local.
+    */
+    'allowed_origins' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env(
+            'CORS_ALLOWED_ORIGINS',
+            'https://gplace.gooding.solutions,http://localhost:3000,http://127.0.0.1:3000'
+        ))
+    ))),
 
     'allowed_origins_patterns' => [],
 

@@ -23,6 +23,19 @@ class ProfileController extends BaseController
             ->where('users.id', $user->id)
             ->first();
 
+        if ($data) {
+            $data->load(['roles' => function ($query) {
+                $query->select('roles.id', 'roles.name', 'roles.guard_name');
+            }]);
+            $first = $data->roles->first();
+            $data->setAttribute('role', $first ? $first->name : null);
+            $data->loadMissing(['roles.permissions', 'permissions']);
+            $data->setAttribute(
+                'permissions',
+                $data->getAllPermissions()->pluck('name')->unique()->values()->all()
+            );
+        }
+
         return $this->sendResponse($data);
     }
 

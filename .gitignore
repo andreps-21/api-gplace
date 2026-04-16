@@ -1,4 +1,6 @@
 composer.phar
+# Frontend Next.js (app separada que consome esta API; versionar noutro repositório se quiseres)
+/frontend-api-gplace/
 # Core dump PHP-FPM (não versionar; GitHub rejeita >100MB)
 public/core
 /node_modules

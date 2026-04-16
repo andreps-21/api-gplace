@@ -25,16 +25,16 @@
         }
 
         .btn-send-modal {
-            background: #363f94;
-            border-color: #222c3e;
+            background: #2f3a8f;
+            border-color: #262f73;
             width: 200px;
             border-radius: 20px;
             color: white;
         }
 
         .btn-send-modal:hover {
-            background: #607ebb;
-            border-color: #345083;
+            background: #262f73;
+            border-color: #2f3a8f;
             color: white;
 
         }
@@ -79,13 +79,13 @@
             letter-spacing: 0.05rem;
             padding: 0.75rem 1rem;
             border-radius: 2rem;
-            background: #363f94;
-            border-color: #364461;
+            background: #2f3a8f;
+            border-color: #262f73;
         }
 
         .btn-login:hover {
-            background: #3e55b4;
-            border-color: #363f94;
+            background: #262f73;
+            border-color: #2f3a8f;
         }
 
         .form-label-group {
