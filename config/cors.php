@@ -1,5 +1,15 @@
 <?php
 
+/*
+| Se CORS_ALLOWED_ORIGINS no .env estiver vazio ou ausente, usa-se esta lista
+| (evita produção sem nenhuma origem e browser a mostrar só "CORS Missing").
+*/
+$corsOriginsFromEnv = env('CORS_ALLOWED_ORIGINS');
+$defaultOriginsList = 'https://gplace.gooding.solutions,https://www.gplace.gooding.solutions,http://localhost:3000,http://127.0.0.1:3000';
+$corsOriginsList = (is_string($corsOriginsFromEnv) && trim($corsOriginsFromEnv) !== '')
+    ? $corsOriginsFromEnv
+    : $defaultOriginsList;
+
 return [
 
     /*
@@ -21,17 +31,18 @@ return [
 
     /*
     | Origens permitidas (lista separada por vírgulas no .env: CORS_ALLOWED_ORIGINS).
-    | Por omissão: frontend em produção + Next em desenvolvimento local.
     */
     'allowed_origins' => array_values(array_filter(array_map(
         'trim',
-        explode(',', (string) env(
-            'CORS_ALLOWED_ORIGINS',
-            'https://gplace.gooding.solutions,http://localhost:3000,http://127.0.0.1:3000'
-        ))
+        explode(',', $corsOriginsList)
     ))),
 
-    'allowed_origins_patterns' => [],
+    /*
+    | HTTPS em subdomínios *.gooding.solutions (útil se o front usar outro host).
+    */
+    'allowed_origins_patterns' => [
+        '#^https://([a-z0-9-]+\.)*gooding\.solutions$#i',
+    ],
 
     'allowed_headers' => ['*'],
 

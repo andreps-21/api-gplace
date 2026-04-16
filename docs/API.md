@@ -260,6 +260,10 @@ Para detalhes de *body* (campos obrigatórios), a fonte de verdade são as regra
 
 Para clientes móveis ou SPA que consomem Passport, é necessário ter as chaves e clientes configurados (`php artisan passport:install`, etc.). Isto é infraestrutura do servidor, não parte do contrato JSON acima.
 
+### CORS (browser → API em outro domínio)
+
+No `.env` da API, define **`CORS_ALLOWED_ORIGINS`** com o URL exacto do frontend (ex.: `https://gplace.gooding.solutions`). Se estiver vazio, `config/cors.php` usa uma lista por omissão. Depois de alterar variáveis, corre `php artisan config:clear` (ou `config:cache` com o `.env` correcto). Respostas **500** também passam a incluir cabeçalhos CORS (`App\Exceptions\Handler` + `App\Support\CorsResponseHeaders`) para o browser não mascarar o erro como “CORS”.
+
 ---
 
 ## 11. Frontend Next.js (`frontend-api-gplace`)
@@ -268,7 +272,7 @@ Repositório à parte (ou pasta ignorada no Git da API). Variáveis em **`.env.l
 
 | Variável | Exemplo | Descrição |
 |----------|---------|-----------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8005/api/v1` | Base da API (Docker api-gplace: porta **8005** por omissão). |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8005/api/v1` (dev) ou `https://api-gplace.gooding.solutions/api/v1` (produção) | Base da API. |
 | `NEXT_PUBLIC_APP_TOKEN` | `gplace-local-frontend` (dev) ou `stores.app_token` | Em **local**, o seeder `LocalDevStoreSeeder` cria uma loja com token fixo `gplace-local-frontend` e liga ao `admin@gooding.solutions`. O `next dev` usa esse valor por omissão. Em produção, usar o token real da loja. |
 
 O cliente HTTP em `frontend-api-gplace/lib/api.ts` define `Authorization: Bearer` após login (Passport) e o header `app` a partir de `NEXT_PUBLIC_APP_TOKEN`.

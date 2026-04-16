@@ -2,7 +2,9 @@
 
 namespace App\Exceptions;
 
+use App\Support\CorsResponseHeaders;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -37,5 +39,19 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+    }
+
+    /**
+     * @param  \Illuminate\Http\Request  $request
+     */
+    public function render($request, Throwable $e)
+    {
+        $response = parent::render($request, $e);
+
+        if ($response instanceof Response && $request->is('api/*')) {
+            CorsResponseHeaders::applyIfAllowed($request, $response);
+        }
+
+        return $response;
     }
 }
