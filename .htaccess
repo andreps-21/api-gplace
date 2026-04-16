@@ -1,0 +1,2 @@
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ /pandora/gooding-ecommerce/public/$1 [L,R=301]

@@ -1,0 +1,132 @@
+.required:after {
+    content: "*";
+    color: red;
+}
+
+select[readonly] {
+    background: #eee;
+    pointer-events: none;
+    touch-action: none;
+}
+
+select[readonly].select2-hidden-accessible + .select2-container,
+select[readonly] + .dashboardcode-bsmultiselect {
+    pointer-events: none;
+    touch-action: none;
+}
+
+select[readonly].select2-hidden-accessible
+    + .select2-container
+    .select2-selection,
+    select[readonly] + .dashboardcode-bsmultiselect {
+    background: #eee;
+    box-shadow: none;
+}
+
+select[readonly].select2-hidden-accessible
+    + .select2-container
+    .select2-selection__arrow,
+select[readonly].select2-hidden-accessible
+    + .select2-container
+    .select2-selection__clear {
+    display: none;
+}
+
+.select2-selection__rendered {
+    font-size: 0.75rem;
+    font-family: "Poppins", sans-serif;
+}
+.select2-container {
+    width: 100% !important;
+}
+
+.modal-loading {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.8)
+        url("http://i.stack.imgur.com/FhHRx.gif") 50% 50% no-repeat;
+}
+
+/* enquanto estiver carregando, o scroll da página estará desativado */
+body.loading {
+    overflow: hidden;
+}
+
+/* a partir do momento em que o body estiver com a classe loading,  o modal aparecerá */
+body.loading .modal-loading {
+    display: block;
+}
+
+.dot {
+    height: 16px;
+    width: 16px;
+    background-color: #bbb;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.products {
+    max-width: 100%;
+    max-height: 80%;
+    min-width: 100%;
+    min-height: 80%;
+}
+
+.painel-header {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+.painel-body {
+    margin-top: 10px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+.painel-body th {
+    background-color: #d1d1d1;
+}
+
+.painel-footer {
+    margin-top: 10px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+.painel-body table .form-group {
+    margin-bottom: 1rem;
+}
+
+th.op {
+    min-width: 10px;
+}
+
+th.data {
+    min-width: 200px;
+}
+
+th.values {
+    min-width: 150px;
+}
+
+th.short {
+    min-width: 90px;
+}
+
+.signature {
+    border: 0;
+    border-bottom: 1px solid #000;
+    width: 50%;
+}
+
+.stop-word{
+    word-break: break-word;
+}

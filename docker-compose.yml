@@ -1,0 +1,89 @@
+# Nome fixo do projeto: volumes/rede estáveis ao mudar de pasta.
+#
+# Portas padrão no host (convivem com os outros repos em fullstack/):
+#   api-gooding-agendamento → 8000, 3308, 8080
+#   api-gmonitora           → 8001, 3306, 8081
+#   api-apollo              → 8002, 3307, 8082
+#   api-ei-nobre (goombo)   → 8003, 3309, 8083, 9003
+#   api-gooding-cobranca    → 8004, 3310, 8084
+#   api-gplace              → 8005, 3311, 8085 (APP_PORT, MYSQL_PORT, PHPMYADMIN_PORT)
+#
+# Sobrescreva no shell ou no .env na raiz: APP_PORT, MYSQL_PORT, PHPMYADMIN_PORT.
+# Com os defaults acima: APP_URL=http://localhost:8005 e DB_PORT=3311 se correr artisan no host contra este MySQL.
+name: api-gplace
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-gplace-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "${APP_PORT:-8005}:8000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      # Sem isto, APP_URL=http://localhost faz asset()/mix apontarem para a porta 80 e o Blade parece “sem CSS”.
+      APP_URL: "http://localhost:${APP_PORT:-8005}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - api-gplace-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: api-gplace-mysql
+    restart: unless-stopped
+    environment:
+      # Nome fixo: se DB_DATABASE no .env estiver vazio, ${DB_DATABASE:-loja} no Compose fica "" e o MySQL não cria base.
+      MYSQL_DATABASE: loja
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      - "${MYSQL_PORT:-3311}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - api-gplace-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    platform: linux/amd64
+    container_name: api-gplace-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "${PHPMYADMIN_PORT:-8085}:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - api-gplace-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  api-gplace-network:
+    driver: bridge
