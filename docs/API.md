@@ -258,7 +258,18 @@ Para detalhes de *body* (campos obrigatórios), a fonte de verdade são as regra
 
 ## 10. OAuth / Passport no ambiente
 
-Para clientes móveis ou SPA que consomem Passport, é necessário ter as chaves e clientes configurados (`php artisan passport:install`, etc.). Isto é infraestrutura do servidor, não parte do contrato JSON acima.
+O login em `POST /api/v1/auth/login` chama `$user->createToken(...)` (Passport). **Sem infraestrutura Passport completa o servidor devolve HTTP 500.**
+
+No servidor (após `composer install` e `.env` com base de dados):
+
+```bash
+php artisan migrate
+php artisan passport:install
+```
+
+Isto cria as tabelas OAuth (vêm do pacote Passport), as chaves `storage/oauth-private.key` e `storage/oauth-public.key`, e o *personal access client* necessário para emitir tokens. O `AuthServiceProvider` regista `Passport::routes()` (prefixo `/oauth`).
+
+Se o login ainda falhar, vê `storage/logs/laravel.log` e confirma permissões de escrita em `storage/`.
 
 ### CORS (browser → API em outro domínio)
 

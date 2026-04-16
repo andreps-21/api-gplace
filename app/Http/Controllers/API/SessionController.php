@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use RuntimeException;
+use Throwable;
 
 class SessionController extends BaseController
 {
@@ -46,7 +49,28 @@ class SessionController extends BaseController
                 return $this->sendError('Usuário não cadastrado nessa loja.', [], 401);
             }
 
-            $token = $user->createToken(config('app.key'));
+            try {
+                // Nome curto do token (Passport); não usar APP_KEY como nome.
+                $token = $user->createToken('gplace-session');
+            } catch (RuntimeException $e) {
+                Log::error('Passport personal access client em falta ou chaves OAuth inválidas.', [
+                    'exception' => $e->getMessage(),
+                ]);
+
+                return $this->sendError(
+                    'Autenticação por token indisponível no servidor. Executa `php artisan passport:install` (ou migrações Passport) e confirma `storage/oauth-*.key`.',
+                    [],
+                    503
+                );
+            } catch (Throwable $e) {
+                Log::error('Erro ao emitir token Passport no login.', ['exception' => $e]);
+
+                return $this->sendError(
+                    'Não foi possível concluir o login. Verifica os logs do servidor (Passport / chaves OAuth).',
+                    [],
+                    503
+                );
+            }
 
             return $this->sendResponse([
                 'user' => $user,
