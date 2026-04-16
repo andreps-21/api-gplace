@@ -18,7 +18,17 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+/*
+| Rotas /api/v1/* com nomes prefixados (api.v1.*) para não colidir com route names do Blade
+| (ex.: cities.index, states.index, products.index) ao correr `php artisan route:cache`.
+| A rota PagSeguro mantém o nome global `pagseguro.notification` (config dos pacotes).
+*/
 Route::prefix('v1')->group(function () {
+    Route::post('/pagseguro/notification', [
+        'uses' => '\laravel\pagseguro\Platform\Laravel5\NotificationController@notification',
+    ])->name('pagseguro.notification');
+
+    Route::name('api.v1.')->group(function () {
     Route::middleware(['app'])->group(function () {
         Route::group(['prefix' => 'auth'], function () {
             Route::post('login', [App\Http\Controllers\API\SessionController::class, 'store']);
@@ -160,11 +170,6 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    Route::post('/pagseguro/notification', [
-        'uses' => '\laravel\pagseguro\Platform\Laravel5\NotificationController@notification',
-        'as' => 'pagseguro.notification',
-    ]);
-
     Route::get('get-person-by-nif', App\Http\Controllers\API\GetPersonByNifController::class);
     Route::post('get-user-by-nif', App\Http\Controllers\API\GetUserByNifController::class);
 
@@ -192,5 +197,5 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('orders', App\Http\Controllers\Integration\OrderController::class)->only(['index', 'show', 'update']);
         });
 
-    Route::post('pagseguro/notification',  App\Http\Controllers\API\NotificationPagseguroController::class);
+    });
 });
