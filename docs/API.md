@@ -28,27 +28,27 @@ Existem **dois** mecanismos que preenchem `store` no request (formato compatíve
 | Middleware | Quando aplica | Cabeçalho `app` | Comportamento |
 |------------|---------------|-----------------|----------------|
 | **`app`** (`CheckAppHeader`) | Catálogo público, registo de cliente na loja, pedidos/moradas do **cliente** na vitrine | **Obrigatório** nesses endpoints | Resolve a loja por `stores.app_token`. Erros típicos: **403** — `App ID não informada.` / `App ID não válida.` |
-| **`user_store`** (`BindAuthenticatedUserStore`) | Rotas do **painel** após `auth:api` (logout, perfil, dashboard, `/admin/*`, etc.) | **Opcional** | O utilizador tem de ter pelo menos uma loja no pivot `user_stores`. Usa a **primeira** loja (por `stores.id`) ou, se enviares `app` e for válido **e** o user pertencer a essa loja, usa essa. Erros: **403** sem loja associada; **500** se não for possível resolver a loja. |
+| **`user_store`** (`BindAuthenticatedUserStore`) | Rotas do **painel** após `auth:sanctum` (logout, perfil, dashboard, `/admin/*`, etc.) | **Opcional** | O utilizador tem de ter pelo menos uma loja no pivot `user_stores`. Usa a **primeira** loja (por `stores.id`) ou, se enviares `app` e for válido **e** o user pertencer a essa loja, usa essa. Erros: **403** sem loja associada; **500** se não for possível resolver a loja. |
 
-**Resumo:** o **login** (`POST /auth/login`) e a **recuperação de password** **não** exigem `app`. O **painel** autenticado por Passport **não** exige `app`; o **ecommerce / catálogo público** (e registo `POST /auth/users` na loja) **exigem** `app`.
+**Resumo:** o **login** (`POST /auth/login`) e a **recuperação de password** **não** exigem `app`. O **painel** autenticado por Sanctum **não** exige `app`; o **ecommerce / catálogo público** (e registo `POST /auth/users` na loja) **exigem** `app`.
 
 ---
 
-## 3. Autenticação do utilizador (Laravel Passport)
+## 3. Autenticação do utilizador (Laravel Sanctum)
 
-O guard **`api`** usa o driver **`passport`**.
+As rotas protegidas usam o middleware **`auth:sanctum`**. O token é um **personal access token** (tabela `personal_access_tokens`).
 
 | Uso | Cabeçalho |
 |-----|-----------|
-| Rotas `auth:api` | `Authorization: Bearer {access_token}` |
+| Rotas `auth:sanctum` | `Authorization: Bearer {token}` |
 
-O token obtém-se em **`POST /api/v1/auth/login`** com `email` e `password` **sem** obrigatoriedade do header `app`. Após o login, as rotas do painel usam **`auth:api` + `user_store`**: a loja activa vem do utilizador (ver secção 2).
+O token obtém-se em **`POST /api/v1/auth/login`** com `email` e `password` **sem** obrigatoriedade do header `app`. Após o login, as rotas do painel usam **`auth:sanctum` + `user_store`**: a loja activa vem do utilizador (ver secção 2).
 
 **Exemplo (perfil no painel — `app` opcional):**
 
 ```http
 GET /api/v1/auth/profile
-Authorization: Bearer {access_token}
+Authorization: Bearer {token}
 ```
 
 Se o utilizador tiver **várias** lojas, podes enviar `app: {app_token}` para forçar o contexto dessa loja (desde que o utilizador pertença a ela).
@@ -57,7 +57,7 @@ Se o utilizador tiver **várias** lojas, podes enviar `app: {app_token}` para fo
 
 | Método | Path | Auth |
 |--------|------|------|
-| GET | `/api/user` | `auth:api` |
+| GET | `/api/user` | `auth:sanctum` |
 
 ---
 
@@ -67,14 +67,14 @@ Todas as URLs abaixo são relativas a **`/api/v1`**.
 
 ### 4.1 Login e recuperação de password (sem middleware `app`)
 
-| Método | Path | `auth:api` | Descrição |
-|--------|------|------------|-----------|
-| POST | `/auth/login` | Não | `email`, `password` — devolve `user` + `token` (Passport). Não exige header `app`. |
+| Método | Path | `auth:sanctum` | Descrição |
+|--------|------|----------------|-------------|
+| POST | `/auth/login` | Não | `email`, `password` — devolve `user` + `token` (Sanctum). Não exige header `app`. |
 | POST | `/auth/password/email` | Não | Pedido de recuperação de password. |
 | POST | `/auth/password/code/check` | Não | Validação de código. |
 | POST | `/auth/password/reset` | Não | Reset de password com código. |
 
-### 4.2 Painel autenticado (`auth:api` + `user_store`)
+### 4.2 Painel autenticado (`auth:sanctum` + `user_store`)
 
 Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, dashboard, vendas, estabelecimentos, notificações (stubs) e **`/admin/*`** (detalhe na secção 4.6).
 
@@ -95,8 +95,8 @@ Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, da
 
 ### 4.3 Registo na vitrine (middleware `app` obrigatório)
 
-| Método | Path | `auth:api` | Descrição |
-|--------|------|------------|-----------|
+| Método | Path | `auth:sanctum` | Descrição |
+|--------|------|----------------|-------------|
 | POST | `/auth/users` | Não | Registo de utilizador / pessoa na loja (`UserController`). |
 | POST | `/auth/user-lead` | Não | Registo tipo lead (`UserLeadController`). |
 
@@ -128,7 +128,7 @@ Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, da
 | POST | `/validate-coupon` | Validação de cupão. |
 | GET | `/salesman` | Vendedores. |
 
-### 4.5 Pedidos e moradas do cliente na vitrine (`app` + `auth:api`)
+### 4.5 Pedidos e moradas do cliente na vitrine (`app` + `auth:sanctum`)
 
 | Método | Path | Descrição |
 |--------|------|-----------|
@@ -143,7 +143,7 @@ Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, da
 
 **Checkout (`POST /orders`):** valida estoque antes de criar o pedido: a soma das quantidades por `product_id` não pode exceder `products.quantity` da loja (`lockForUpdate`). Erro **422** com mensagem e `data.available` / `data.requested` quando insuficiente. Cada linha gera registo em **`stock_movements`** (`order_sale`).
 
-### 4.6 Administração Gplace (`auth:api` + `user_store`)
+### 4.6 Administração Gplace (`auth:sanctum` + `user_store`)
 
 Migração das áreas de **configuração** e **gerenciamento** do Blade. O escopo da loja é resolvido pelo middleware **`user_store`** (associação utilizador–loja; header **`app`** opcional para escolher loja). Não confundir com as secções **4.3–4.5**, onde o catálogo e o checkout do **cliente** na vitrine exigem o header **`app`**.
 
@@ -279,20 +279,19 @@ Para detalhes de *body* (campos obrigatórios), a fonte de verdade são as regra
 
 ---
 
-## 10. OAuth / Passport no ambiente
+## 10. Sanctum no ambiente
 
-O login em `POST /api/v1/auth/login` valida email/password com `Hash::check` (não usa `Auth::attempt` do guard `web`, porque as rotas `api/*` não têm sessão e isso gerava 500). Em seguida chama `$user->createToken(...)` (Passport). **Sem infraestrutura Passport completa o servidor devolve HTTP 500 ou 503.** O login **não** depende do header `app`.
+O login em `POST /api/v1/auth/login` valida email/password com `Hash::check` (não usa `Auth::attempt` do guard `web`, porque as rotas `api/*` não têm sessão e isso gerava 500). Em seguida chama `$user->createToken(...)` (Sanctum). É necessária a tabela **`personal_access_tokens`** (migração incluída no projecto). O login **não** depende do header `app`.
 
 No servidor (após `composer install` e `.env` com base de dados):
 
 ```bash
 php artisan migrate
-php artisan passport:install
 ```
 
-Isto cria as tabelas OAuth (vêm do pacote Passport), as chaves `storage/oauth-private.key` e `storage/oauth-public.key`, e o *personal access client* necessário para emitir tokens. O `AuthServiceProvider` regista `Passport::routes()` (prefixo `/oauth`).
+Não é necessário `passport:install` nem ficheiros `storage/oauth-*.key`.
 
-Se o login ainda falhar, vê `storage/logs/laravel.log` e confirma permissões de escrita em `storage/`.
+Se o login ainda falhar, vê `storage/logs/laravel.log` e confirma que a migração `personal_access_tokens` correu.
 
 ### CORS (browser → API em outro domínio)
 
@@ -307,7 +306,7 @@ Repositório à parte (ou pasta ignorada no Git da API). Variáveis em **`.env.l
 | Variável | Exemplo | Descrição |
 |----------|---------|-----------|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8005/api/v1` (dev) ou `https://api-gplace.gooding.solutions/api/v1` (produção) | Base da API. |
-| `NEXT_PUBLIC_APP_TOKEN` | `gplace-local-frontend` (dev) ou `stores.app_token` | **Obrigatório** para chamadas ao **catálogo público / vitrine** (`products`, `home`, etc.) e fluxos que usam o middleware `app`. **Opcional** para o **painel** só com login (Passport): a API infere a loja pelo utilizador; define o token se quiseres forçar uma loja ou testar a vitrine. Em local, sem variável, o cliente pode usar o token de desenvolvimento `gplace-local-frontend` quando a API é local (ver `lib/public-env.ts`). |
+| `NEXT_PUBLIC_APP_TOKEN` | `gplace-local-frontend` (dev) ou `stores.app_token` | **Obrigatório** para chamadas ao **catálogo público / vitrine** (`products`, `home`, etc.) e fluxos que usam o middleware `app`. **Opcional** para o **painel** só com login (Sanctum): a API infere a loja pelo utilizador; define o token se quiseres forçar uma loja ou testar a vitrine. Em local, sem variável, o cliente pode usar o token de desenvolvimento `gplace-local-frontend` quando a API é local (ver `lib/public-env.ts`). |
 
 O cliente HTTP em `frontend-api-gplace/lib/api.ts` envia `Authorization: Bearer` após login e o header `app` quando `getResolvedAppToken()` devolve valor; avisos no consola sobre `app` aplicam-se sobretudo a rotas de catálogo/ecommerce.
 

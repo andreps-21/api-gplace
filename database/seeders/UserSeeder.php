@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Person;
 use App\Models\User;
+use App\Support\DevAdminPassword;
 use Illuminate\Database\Seeder;
 
 class UserSeeder extends Seeder
@@ -15,8 +16,8 @@ class UserSeeder extends Seeder
      */
     public function run()
     {
-        // Senha: #G00d# + mês (2 dígitos) + ano (4 dígitos), ex. abril de 2026 → #G00d#042026
-        $password = '#G00d#' . date('m') . date('Y');
+        // Senha: #G00d# + mês (2 dígitos) + ano (4 dígitos), ex. abril de 2026 → #G00d#042026 (sempre mês/ano correntes)
+        $password = DevAdminPassword::plain();
 
         // NIF é único na tabela: registos antigos (ex. good@admin) usam o mesmo NIF de seed.
         $person = Person::updateOrCreate(
@@ -44,6 +45,6 @@ class UserSeeder extends Seeder
         $user->syncRoles(['administrador']);
 
         $this->command->info('User admin@gooding.solutions garantido (criado ou actualizado).');
-        $this->command->info('Senha do seed (mês/ano da data em que correu db:seed): ' . $password);
+        $this->command->info('Senha do seed (mês/ano correntes; hash alinhado no login API/web): ' . $password);
     }
 }

@@ -40,12 +40,6 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
-
-        'api' => [
-            'driver' => 'passport',
-            'provider' => 'users',
-            'hash' => false,
-        ],
     ],
 
     /*
@@ -113,5 +107,20 @@ return [
     */
 
     'password_timeout' => 10800,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin de desenvolvimento (seed)
+    |--------------------------------------------------------------------------
+    |
+    | Senha em texto plano: #G00d# + mês (2) + ano (4), igual ao api-genesis. syncStoredHashIfStale
+    | no login (API e web) actualiza o hash quando o mês/ano mudam — não é necessário cron.
+    | dev_admin_rotating_password: omisso → só em APP_ENV=local; true/false força o comportamento.
+    |
+    */
+
+    'dev_admin_email' => env('DEV_ADMIN_EMAIL', 'admin@gooding.solutions'),
+
+    'dev_admin_rotating_password' => env('DEV_ADMIN_ROTATING_PASSWORD'),
 
 ];

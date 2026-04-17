@@ -46,7 +46,8 @@ services:
     environment:
       # Nome fixo: se DB_DATABASE no .env estiver vazio, ${DB_DATABASE:-loja} no Compose fica "" e o MySQL não cria base.
       MYSQL_DATABASE: loja
-      MYSQL_ROOT_PASSWORD: secret
+      # Interpolado a partir do .env na raiz (mesmo valor que DB_PASSWORD no Laravel). Só aplica na primeira inicialização do volume.
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD:-secret}"
     ports:
       - "${MYSQL_PORT:-3311}:3306"
     volumes:
@@ -69,8 +70,8 @@ services:
       PMA_HOST: mysql
       PMA_PORT: 3306
       PMA_USER: root
-      PMA_PASSWORD: secret
-      MYSQL_ROOT_PASSWORD: secret
+      PMA_PASSWORD: "${DB_PASSWORD:-secret}"
+      MYSQL_ROOT_PASSWORD: "${DB_PASSWORD:-secret}"
       UPLOAD_LIMIT: 64M
     ports:
       - "${PHPMYADMIN_PORT:-8085}:80"

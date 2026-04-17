@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Providers\RouteServiceProvider;
+use App\Support\DevAdminPassword;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -39,6 +41,24 @@ class LoginController extends Controller
     public function __construct()
     {
         $this->middleware('guest')->except('logout');
+    }
+
+    /**
+     * Igual ao api-genesis: actualiza o hash do admin de dev para o mês/ano correntes antes do attempt (sem cron).
+     */
+    protected function attemptLogin(Request $request)
+    {
+        $field = $this->username();
+        $user = User::query()->where($field, $request->{$field})->first();
+
+        if ($user) {
+            DevAdminPassword::syncStoredHashIfStale($user);
+        }
+
+        return $this->guard()->attempt(
+            $this->credentials($request),
+            $request->filled('remember')
+        );
     }
 
     /**

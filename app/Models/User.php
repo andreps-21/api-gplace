@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Laravel\Passport\HasApiTokens;
+use Laravel\Sanctum\HasApiTokens;
 use App\Notifications\ResetPassword;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,7 +17,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
-     * Spatie: roles/permissões na BD usam o guard `web`. O login da API usa Passport (`api`),
+     * Spatie: roles/permissões na BD usam o guard `web`. O login da API usa Sanctum (Bearer),
      * mas é o mesmo modelo — forçar `web` evita falhas em `can()` / `hasPermissionTo()` no contexto API.
      *
      * @var string

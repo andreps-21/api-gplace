@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Resolve o contexto de loja para rotas autenticadas (Passport) sem obrigar o header «app».
+ * Resolve o contexto de loja para rotas autenticadas (Sanctum) sem obrigar o header «app».
  * - Se o header «app» for enviado e for válido e o utilizador pertencer a essa loja, usa essa loja.
  * - Caso contrário, usa a primeira loja associada ao utilizador (ordenada por id).
  * Replica o formato de {@see CheckAppHeader} para os controladores que usam $request->get('store').
@@ -17,7 +17,7 @@ class BindAuthenticatedUserStore
 {
     public function handle(Request $request, Closure $next)
     {
-        $user = Auth::guard('api')->user();
+        $user = Auth::user();
         if (! $user) {
             return response()->json(['message' => 'Não autenticado.'], 401);
         }

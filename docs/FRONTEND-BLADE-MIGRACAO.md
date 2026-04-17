@@ -1,6 +1,6 @@
 # Migração Blade (api-gplace) → Next.js (`frontend-api-gplace`)
 
-O painel web actual usa **sessão** (`session('store')`, `session('tenant')`, Spatie `permission:*`). O Next consome **API JSON** com cabeçalho **`app`** (`stores.app_token`) + **`Authorization: Bearer`** (Passport).
+O painel web actual usa **sessão** (`session('store')`, `session('tenant')`, Spatie `permission:*`). O Next consome **API JSON** com cabeçalho **`app`** (`stores.app_token`) + **`Authorization: Bearer`** (Sanctum).
 
 | Blade (web) | Rota / recurso | Prioridade sugerida | Estado API v1 admin | Rota Next (prefixo) |
 |-------------|----------------|----------------------|---------------------|---------------------|
@@ -63,7 +63,7 @@ O painel web actual usa **sessão** (`session('store')`, `session('tenant')`, Sp
 ## Convenções
 
 - **Prefixo UI:** `/dashboard/admin/...` para tudo espelhado do Blade admin (evita colisão com rotas TIM em `/dashboard/vendas`, etc.).
-- **Prefixo API:** `/api/v1/admin/...` (grupo `app` + `auth:api`).
+- **Prefixo API:** `/api/v1/admin/...` (grupo `app` + `auth:sanctum`).
 - **Documentação de rotas:** `docs/API.md` secção 4.4 e este ficheiro.
 
 ## Diferenças Blade vs API
@@ -72,7 +72,7 @@ O painel web actual usa **sessão** (`session('store')`, `session('tenant')`, Sp
 |-------|----------|
 | `session('store')['id']` | `$request->attributes->get('store')['id']` via middleware `app` |
 | `session('tenant')` | derivar de `Store::whereKey($storeId)->value('tenant_id')` quando necessário |
-| `permission:x` middleware | por agora só `auth:api`; depois mapear permissões Spatie por rota ou policy |
+| `permission:x` middleware | por agora só `auth:sanctum`; depois mapear permissões Spatie por rota ou policy |
 
 ---
 

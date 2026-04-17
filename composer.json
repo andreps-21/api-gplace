@@ -19,7 +19,7 @@
         "kalnoy/nestedset": "^6.0",
         "laravel-frontend-presets/white-dashboard": "^1.0",
         "laravel/framework": "^9.0",
-        "laravel/passport": "^10.1",
+        "laravel/sanctum": "^3.0",
         "laravel/tinker": "^2.7",
         "laravel/ui": "^3.2",
         "maatwebsite/excel": "^3.1",

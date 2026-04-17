@@ -58,8 +58,25 @@ _read_env_kv() {
 DB_ENSURE="$(_read_env_kv DB_DATABASE)"
 DB_ENSURE="${DB_ENSURE:-loja}"
 DB_ENSURE="${DB_ENSURE//\`/}"
+MYSQL_ROOT_PW="$(_read_env_kv DB_PASSWORD)"
+MYSQL_ROOT_PW="${MYSQL_ROOT_PW:-secret}"
+
 echo "==> Garantir base de dados \"${DB_ENSURE}\" (CREATE IF NOT EXISTS; corrige volumes antigos sem loja)..."
-"${COMPOSE[@]}" exec -T mysql mysql -uroot -psecret -e "CREATE DATABASE IF NOT EXISTS \`${DB_ENSURE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql_ready=0
+for attempt in $(seq 1 20); do
+  if "${COMPOSE[@]}" exec -T -e "MYSQL_PWD=${MYSQL_ROOT_PW}" mysql mysql -uroot -e "SELECT 1" >/dev/null 2>&1; then
+    mysql_ready=1
+    break
+  fi
+  echo "==> À espera do MySQL aceitar root (${attempt}/20)..."
+  sleep 2
+done
+if [[ "${mysql_ready}" != "1" ]]; then
+  echo "Erro: não foi possível ligar ao MySQL como root com DB_PASSWORD do .env (ou secret por omissão)."
+  echo "Se mudaste DB_PASSWORD depois de criar o volume, alinha a senha ou remove o volume: ${COMPOSE[*]} down -v"
+  exit 1
+fi
+"${COMPOSE[@]}" exec -T -e "MYSQL_PWD=${MYSQL_ROOT_PW}" mysql mysql -uroot -e "CREATE DATABASE IF NOT EXISTS \`${DB_ENSURE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
 echo "==> composer install (no contentor app)..."
 "${COMPOSE[@]}" exec -T -e COMPOSER_ALLOW_SUPERUSER=1 app composer install --no-interaction --prefer-dist --no-progress
@@ -90,6 +107,6 @@ echo "Pronto."
 echo "  • App (Laravel): http://localhost:${APP_PORT_HOST}"
 echo "  • MySQL (host):  localhost:${MYSQL_PORT_HOST}"
 echo "  • phpMyAdmin:    http://localhost:${PHPMYADMIN_PORT_HOST}"
-echo "  • Utilizador seed: admin@gooding.solutions — senha #G00d#MMYYYY (mês/ano em que correu o seed; ver saída do db:seed)"
+echo "  • Utilizador seed: admin@gooding.solutions — senha #G00d# + mês (2) + ano (4); hash sincronizado no login (sem cron)"
 echo ""
 echo "Comandos úteis:  ${COMPOSE[*]} logs -f app    |    ${COMPOSE[*]} stop"

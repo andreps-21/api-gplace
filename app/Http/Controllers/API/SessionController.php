@@ -4,11 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\DevAdminPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use RuntimeException;
 use Throwable;
 
 class SessionController extends BaseController
@@ -30,9 +30,14 @@ class SessionController extends BaseController
         /*
          * Não usar Auth::attempt() aqui: o guard `web` grava sessão (SessionGuard::login),
          * mas as rotas `api/*` não carregam StartSession — em produção isso provoca 500
-         * ("Session store not set on request"). Validação manual + Passport token.
+         * ("Session store not set on request"). Validação manual + token Sanctum.
          */
         $user = User::where('email', $inputs['email'])->first();
+
+        if ($user) {
+            DevAdminPassword::syncStoredHashIfStale($user);
+            $user->refresh();
+        }
 
         if (! $user || ! Hash::check($inputs['password'], $user->password)) {
             return $this->sendError('Email ou senha inválidos', [], 401);
@@ -63,21 +68,11 @@ class SessionController extends BaseController
 
         try {
             $token = $user->createToken('gplace-session');
-        } catch (RuntimeException $e) {
-            Log::error('Passport personal access client em falta ou chaves OAuth inválidas.', [
-                'exception' => $e->getMessage(),
-            ]);
-
-            return $this->sendError(
-                'Autenticação por token indisponível no servidor. Executa `php artisan passport:install` (ou migrações Passport) e confirma `storage/oauth-*.key`.',
-                [],
-                503
-            );
         } catch (Throwable $e) {
-            Log::error('Erro ao emitir token Passport no login.', ['exception' => $e]);
+            Log::error('Erro ao emitir token Sanctum no login.', ['exception' => $e]);
 
             return $this->sendError(
-                'Não foi possível concluir o login. Verifica os logs do servidor (Passport / chaves OAuth).',
+                'Não foi possível concluir o login. Confirma migrações (tabela personal_access_tokens) e logs do servidor.',
                 [],
                 503
             );
@@ -85,13 +80,13 @@ class SessionController extends BaseController
 
         return $this->sendResponse([
             'user' => $user,
-            'token' => $token->accessToken,
+            'token' => $token->plainTextToken,
         ], 'Login successfully.');
     }
 
     public function destroy(Request $request)
     {
-        $request->user()->token()->revoke();
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json([
             'message' => 'Successfully logged out'

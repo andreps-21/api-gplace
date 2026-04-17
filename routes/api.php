@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:api')->get('/user', function (Request $request) {
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
@@ -40,10 +40,10 @@ Route::prefix('v1')->group(function () {
         });
 
         /*
-        | Área autenticada do painel: Bearer Passport + loja inferida do utilizador
+        | Área autenticada do painel: Bearer Sanctum + loja inferida do utilizador
         | (header «app» opcional para escolher loja quando o user tem várias).
         */
-        Route::middleware(['auth:api', 'user_store'])->group(function () {
+        Route::middleware(['auth:sanctum', 'user_store'])->group(function () {
             Route::prefix('auth')->group(function () {
                 Route::delete('logout', [App\Http\Controllers\API\SessionController::class, 'destroy']);
                 Route::get('profile', [App\Http\Controllers\API\ProfileController::class, 'show']);
@@ -156,7 +156,7 @@ Route::prefix('v1')->group(function () {
 
         /*
         | Ecommerce / catálogo público: identifica a loja pelo header «app».
-        | Pedidos e moradas do cliente continuam com app + Passport.
+        | Pedidos e moradas do cliente continuam com app + Sanctum.
         */
         Route::middleware(['app'])->group(function () {
             Route::prefix('auth')->group(function () {
@@ -187,7 +187,7 @@ Route::prefix('v1')->group(function () {
             Route::post('validate-coupon', App\Http\Controllers\API\ValidateCouponController::class);
             Route::get('salesman', [App\Http\Controllers\API\SalesmanController::class, 'index']);
 
-            Route::middleware('auth:api')->group(function () {
+            Route::middleware('auth:sanctum')->group(function () {
                 Route::apiResource('orders', App\Http\Controllers\API\OrderController::class)->only(['index', 'show', 'store']);
                 Route::apiResource('addresses', App\Http\Controllers\API\AddressController::class);
             });
