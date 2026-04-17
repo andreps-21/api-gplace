@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Rules\CpfCnpj;
+use App\Support\TenantStoreUserSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -156,6 +157,8 @@ class TenantAdminController extends BaseController
             return $this->sendError('Não foi possível criar o contratante. ' . $e->getMessage(), [], 500);
         }
 
+        TenantStoreUserSync::attachContractorToStoresForTenant((int) $tenant->id);
+
         $row = Tenant::person()->where('tenants.id', $tenant->id)->firstOrFail();
 
         return $this->sendResponse($row, 'Contratante criado. Senha inicial: apenas os dígitos do NIF.', 201);
@@ -205,6 +208,8 @@ class TenantAdminController extends BaseController
                 $user->save();
             }
         });
+
+        TenantStoreUserSync::attachContractorToStoresForTenant((int) $item->id);
 
         return $this->sendResponse($item->fresh());
     }

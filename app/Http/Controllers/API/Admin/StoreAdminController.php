@@ -7,6 +7,7 @@ use App\Models\Person;
 use App\Models\Store;
 use App\Models\Tenant;
 use App\Rules\CpfCnpj;
+use App\Support\TenantStoreUserSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -131,6 +132,8 @@ class StoreAdminController extends BaseController
             }
         });
 
+        TenantStoreUserSync::attachContractorToStoresForTenant((int) $store->tenant_id);
+
         return $this->sendResponse($store->load('paymentMethods'), '', 201);
     }
 
@@ -168,6 +171,8 @@ class StoreAdminController extends BaseController
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
+        $previousTenantId = (int) $item->tenant_id;
+
         DB::transaction(function () use ($request, $item) {
             $inputs = $request->all();
             if ($this->canBrowseAllTenants($request)) {
@@ -184,6 +189,12 @@ class StoreAdminController extends BaseController
                 $item->paymentMethods()->sync($request->paymentMethods ?? []);
             }
         });
+
+        $item->refresh();
+        TenantStoreUserSync::attachContractorToStoresForTenant((int) $item->tenant_id);
+        if ($previousTenantId > 0 && $previousTenantId !== (int) $item->tenant_id) {
+            TenantStoreUserSync::detachContractorFromStore($previousTenantId, (int) $item->id);
+        }
 
         return $this->sendResponse($item->fresh()->load('paymentMethods'));
     }
