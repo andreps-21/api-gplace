@@ -52,6 +52,7 @@ Route::prefix('v1')->group(function () {
             });
 
             Route::get('dashboard/stats', [App\Http\Controllers\API\DashboardController::class, 'stats']);
+            Route::get('dashboard/orders-yearly', [App\Http\Controllers\API\DashboardController::class, 'ordersYearly']);
             Route::get('dashboard/faturamento', [App\Http\Controllers\API\DashboardController::class, 'faturamento']);
             Route::get('sales', App\Http\Controllers\API\SalesListController::class);
             Route::get('establishments/stats', App\Http\Controllers\API\EstablishmentStatsController::class);

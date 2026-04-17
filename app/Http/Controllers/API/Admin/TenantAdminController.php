@@ -95,7 +95,8 @@ class TenantAdminController extends BaseController
         $this->normalizeTenantRequest($request);
 
         $person = Person::where('nif', $request->input('nif'))->first();
-        $validator = Validator::make($request->all(), $this->rules($person?->id));
+        $linkedUserId = $person ? User::query()->where('person_id', $person->id)->value('id') : null;
+        $validator = Validator::make($request->all(), $this->rules($person?->id, $linkedUserId));
 
         if ($validator->fails()) {
             $bag = $validator->errors()->toArray();
@@ -191,7 +192,8 @@ class TenantAdminController extends BaseController
 
         $this->normalizeTenantRequest($request);
 
-        $validator = Validator::make($request->all(), $this->rules($item->person_id));
+        $linkedUser = User::query()->where('person_id', $item->person_id)->first();
+        $validator = Validator::make($request->all(), $this->rules($item->person_id, $linkedUser?->id));
 
         if ($validator->fails()) {
             $bag = $validator->errors()->toArray();
@@ -217,13 +219,22 @@ class TenantAdminController extends BaseController
 
             $user = User::where('person_id', $item->person_id)->first();
             if ($user) {
+                $oldEmail = (string) $user->email;
                 if (isset($validated['status'])) {
                     $user->is_enabled = (int) $validated['status'] === 1;
                 }
+                $user->name = $validated['name'];
+                $user->email = $validated['email'];
+                $passwordChanged = false;
                 if ($newNifDigits !== '' && $oldNifDigits !== $newNifDigits) {
                     $user->password = Hash::make($newNifDigits);
+                    $passwordChanged = true;
                 }
+                $emailChanged = strcasecmp(trim($oldEmail), trim((string) $validated['email'])) !== 0;
                 $user->save();
+                if ($passwordChanged || $emailChanged) {
+                    $user->tokens()->delete();
+                }
             }
         });
 
@@ -263,15 +274,20 @@ class TenantAdminController extends BaseController
         return $this->sendResponse(null, 'Contratante removido.');
     }
 
-    private function rules(?int $personId = null): array
+    private function rules(?int $personId = null, ?int $ignoreUserId = null): array
     {
+        $emailRules = ['required', 'max:89', Rule::unique('people')->ignore($personId)];
+        $emailRules[] = $ignoreUserId !== null
+            ? Rule::unique('users', 'email')->ignore($ignoreUserId)
+            : Rule::unique('users', 'email');
+
         // Igual ao App\Http\Controllers\Admin\TenantsController (Blade) — evita 422 só na API.
         return [
             'name' => ['required', 'max:30'],
             'formal_name' => ['required', 'max:60'],
             'nif' => ['required', 'max:20', new CpfCnpj, Rule::unique('people')->ignore($personId)],
             'city_id' => ['required'],
-            'email' => ['required', 'max:89', Rule::unique('people')->ignore($personId)],
+            'email' => $emailRules,
             'phone' => ['required', 'max:15'],
             'street' => ['required', 'max:120'],
             'contact_phone' => ['nullable', 'max:15'],

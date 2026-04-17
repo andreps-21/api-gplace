@@ -75,6 +75,67 @@ class DashboardController extends BaseController
         ]);
     }
 
+    /**
+     * Contagem de pedidos por mês (1–12) e por ano, para gráfico comparativo (escopo da loja).
+     *
+     * @queryParam years_back int Anos anteriores além do ano corrente (0 = só ano atual; default 2).
+     */
+    public function ordersYearly(Request $request)
+    {
+        $storeId = (int) $request->get('store')['id'];
+        $sellerId = $request->query('seller_id');
+        $sellerId = $sellerId !== null && $sellerId !== '' ? (int) $sellerId : null;
+
+        $yearsBack = (int) $request->query('years_back', 2);
+        $yearsBack = max(0, min($yearsBack, 10));
+
+        $currentYear = (int) Carbon::now()->year;
+        $fromYear = $currentYear - $yearsBack;
+        $anos = range($fromYear, $currentYear);
+
+        $rows = DB::table('orders')
+            ->where('store_id', $storeId)
+            ->where('status', '!=', 8)
+            ->whereRaw('YEAR(purchase_date) BETWEEN ? AND ?', [$fromYear, $currentYear])
+            ->when($sellerId, fn ($q) => $q->where('salesman_id', $sellerId))
+            ->selectRaw('YEAR(purchase_date) as y, MONTH(purchase_date) as m, COUNT(*) as c')
+            ->groupByRaw('YEAR(purchase_date), MONTH(purchase_date)')
+            ->get();
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $y = (int) $row->y;
+            $m = (int) $row->m;
+            if (! isset($counts[$y])) {
+                $counts[$y] = [];
+            }
+            $counts[$y][$m] = (int) $row->c;
+        }
+
+        $mesLabels = [
+            1 => 'Jan', 2 => 'Fev', 3 => 'Mar', 4 => 'Abr', 5 => 'Mai', 6 => 'Jun',
+            7 => 'Jul', 8 => 'Ago', 9 => 'Set', 10 => 'Out', 11 => 'Nov', 12 => 'Dez',
+        ];
+
+        $meses = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $totais = [];
+            foreach ($anos as $y) {
+                $totais[(string) $y] = (int) ($counts[$y][$m] ?? 0);
+            }
+            $meses[] = [
+                'mes' => $m,
+                'label' => $mesLabels[$m],
+                'totais' => $totais,
+            ];
+        }
+
+        return $this->sendResponse([
+            'anos' => array_values($anos),
+            'meses' => $meses,
+        ]);
+    }
+
     public function faturamento(Request $request)
     {
         $storeId = (int) $request->get('store')['id'];

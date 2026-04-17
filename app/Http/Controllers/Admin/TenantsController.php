@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\SizeImage;
 use Illuminate\Validation\Rule;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class TenantsController extends Controller
@@ -146,19 +147,31 @@ class TenantsController extends Controller
         DB::transaction(function () use ($request, $item) {
             $inputs = $request->all();
             $inputs['value'] = moeda($request->value);
-            $inputs['value'] = moeda($request->value);
-            $inputs['value'] = moeda($request->value);
 
             $item->fill($inputs)->save();
 
             $person = Person::find($item->person_id);
+            $oldNifDigits = preg_replace('/\D+/', '', (string) $person->nif);
             $person->fill($inputs)->save();
+            $newNifDigits = preg_replace('/\D+/', '', (string) $person->nif);
 
             $user = User::where('person_id', $item->person_id)->first();
 
             if ($user) {
+                $oldEmail = (string) $user->email;
+                $user->name = $inputs['name'];
+                $user->email = $inputs['email'];
                 $user->is_enabled = $inputs['status'] == 1;
+                $passwordChanged = false;
+                if ($newNifDigits !== '' && $oldNifDigits !== $newNifDigits) {
+                    $user->password = Hash::make($newNifDigits);
+                    $passwordChanged = true;
+                }
+                $emailChanged = strcasecmp(trim($oldEmail), trim((string) $inputs['email'])) !== 0;
                 $user->save();
+                if ($passwordChanged || $emailChanged) {
+                    $user->tokens()->delete();
+                }
             }
         });
 
@@ -185,12 +198,20 @@ class TenantsController extends Controller
 
     private function rules(Request $request, $primaryKey = null, bool $changeMessages = false)
     {
+        $ignoreUserId = $primaryKey !== null
+            ? User::query()->where('person_id', $primaryKey)->value('id')
+            : null;
+        $emailRules = ['required', 'max:89', Rule::unique('people')->ignore($primaryKey)];
+        $emailRules[] = $ignoreUserId !== null
+            ? Rule::unique('users', 'email')->ignore($ignoreUserId)
+            : Rule::unique('users', 'email');
+
         $rules = [
             'name' => ['required', 'max:30'],
             'formal_name' => ['required','max:60'],
             'nif' => ['required', 'max:20', new CpfCnpj, Rule::unique('people')->ignore($primaryKey)],
             'city_id' => ['required'],
-            'email' => ['required', 'max:89', Rule::unique('people')->ignore($primaryKey)],
+            'email' => $emailRules,
             'phone' => ['required', 'max:15'],
             'street' => ['required','max:120'],
             'contact_phone' => ['max:15'],
