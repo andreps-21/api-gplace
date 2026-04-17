@@ -251,14 +251,30 @@ class TenantAdminController extends BaseController
     }
 
     /**
-     * Alinha o payload do Next.js / SPA (camelCase) ao esperado pelo backend (snake_case).
+     * Alinha o payload do Next.js / SPA (camelCase, aninhamentos) ao esperado pelo backend (snake_case).
      */
     private function normalizeTenantRequest(Request $request): void
     {
+        // Formulários que enviam { person: {...}, tenant: {...} }
+        if ($request->filled('person') && is_array($request->input('person'))) {
+            $request->merge($request->input('person'));
+        }
+        if ($request->filled('tenant') && is_array($request->input('tenant'))) {
+            $request->merge($request->input('tenant'));
+        }
+
+        foreach (['city_id', 'cityId'] as $ck) {
+            $cv = $request->input($ck);
+            if (is_array($cv) && isset($cv['id'])) {
+                $request->merge(['city_id' => $cv['id']]);
+            }
+        }
+
         $map = [
             'formalName' => 'formal_name',
             'cityId' => 'city_id',
             'dtAccession' => 'dt_accession',
+            'adhesionDate' => 'dt_accession',
             'dueDate' => 'due_date',
             'dueDay' => 'due_day',
             'contactPhone' => 'contact_phone',
@@ -267,13 +283,40 @@ class TenantAdminController extends BaseController
 
         $merged = [];
         foreach ($map as $camel => $snake) {
-            if ($request->has($camel) && ! $request->filled($snake)) {
+            if ($request->filled($camel) && ! $request->filled($snake)) {
                 $merged[$snake] = $request->input($camel);
             }
         }
 
         if ($merged !== []) {
             $request->merge($merged);
+        }
+
+        foreach (['document', 'cpfCnpj', 'cpf_cnpj', 'taxId', 'cnpj', 'cpf'] as $altNif) {
+            if ($request->filled($altNif) && ! $request->filled('nif')) {
+                $request->merge(['nif' => $request->input($altNif)]);
+            }
+        }
+
+        if ($request->filled('nif')) {
+            $digits = preg_replace('/\D/', '', (string) $request->input('nif'));
+            if ($digits !== '') {
+                $request->merge(['nif' => $digits]);
+            }
+        }
+
+        foreach (['dt_accession', 'due_date'] as $dateField) {
+            if (! $request->filled($dateField)) {
+                continue;
+            }
+            $v = $request->input($dateField);
+            if (! is_string($v)) {
+                continue;
+            }
+            $v = trim($v);
+            if (preg_match('#^(\d{2})/(\d{2})/(\d{4})$#', $v, $m)) {
+                $request->merge([$dateField => "{$m[3]}-{$m[2]}-{$m[1]}"]);
+            }
         }
     }
 }
