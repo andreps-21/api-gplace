@@ -6,6 +6,9 @@ use Illuminate\Contracts\Validation\Rule;
 
 class CpfCnpj implements Rule
 {
+    /** @var 'empty'|'length'|'cpf'|'cnpj'|'generic' */
+    private string $failure = 'generic';
+
     /**
      * Create a new rule instance.
      *
@@ -25,7 +28,11 @@ class CpfCnpj implements Rule
      */
     public function passes($attribute, $value)
     {
+        $this->failure = 'generic';
+
         if ($value === null || $value === '') {
+            $this->failure = 'empty';
+
             return false;
         }
 
@@ -33,12 +40,22 @@ class CpfCnpj implements Rule
         $len = strlen($digits);
 
         if ($len === 11) {
-            return $this->validateCpf($digits);
+            if (! $this->validateCpf($digits)) {
+                $this->failure = 'cpf';
+            }
+
+            return $this->failure === 'generic';
         }
 
         if ($len === 14) {
-            return $this->validateCnpj($digits);
+            if (! $this->validateCnpj($digits)) {
+                $this->failure = 'cnpj';
+            }
+
+            return $this->failure === 'generic';
         }
+
+        $this->failure = 'length';
 
         return false;
     }
@@ -50,7 +67,13 @@ class CpfCnpj implements Rule
      */
     public function message()
     {
-        return 'O CPF/CNPJ informado é inválido.';
+        return match ($this->failure) {
+            'empty' => 'Preencha o CPF ou o CNPJ.',
+            'length' => 'Use 11 dígitos para CPF ou 14 dígitos para CNPJ.',
+            'cpf' => 'O CPF informado é inválido.',
+            'cnpj' => 'O CNPJ informado é inválido.',
+            default => 'O CPF/CNPJ informado é inválido.',
+        };
     }
 
     protected function validateCpf($cpf)
