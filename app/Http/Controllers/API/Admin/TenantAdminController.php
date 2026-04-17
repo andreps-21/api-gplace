@@ -90,6 +90,8 @@ class TenantAdminController extends BaseController
             return $this->sendError('Não autorizado.', [], 403);
         }
 
+        $this->normalizeTenantRequest($request);
+
         $person = Person::where('nif', $request->input('nif'))->first();
         $validator = Validator::make($request->all(), $this->rules($person?->id));
 
@@ -162,6 +164,8 @@ class TenantAdminController extends BaseController
             abort(404);
         }
         $item = Tenant::query()->where('id', $id)->firstOrFail();
+
+        $this->normalizeTenantRequest($request);
 
         $validator = Validator::make($request->all(), $this->rules($item->person_id));
 
@@ -238,10 +242,38 @@ class TenantAdminController extends BaseController
             'contact' => ['nullable', 'max:120'],
             'status' => ['required'],
             'dt_accession' => ['required', 'date'],
-            'due_date' => ['required', 'date'],
+            // Coluna é string no BD; o Blade não valida como date estrito. Valor monetário vem formatado (moeda BR).
+            'due_date' => ['required', 'string', 'max:32'],
             'due_day' => ['required', 'integer'],
-            'value' => ['required', 'numeric'],
+            'value' => ['required'],
             'signature' => ['required', 'integer'],
         ];
+    }
+
+    /**
+     * Alinha o payload do Next.js / SPA (camelCase) ao esperado pelo backend (snake_case).
+     */
+    private function normalizeTenantRequest(Request $request): void
+    {
+        $map = [
+            'formalName' => 'formal_name',
+            'cityId' => 'city_id',
+            'dtAccession' => 'dt_accession',
+            'dueDate' => 'due_date',
+            'dueDay' => 'due_day',
+            'contactPhone' => 'contact_phone',
+            'zipCode' => 'zip_code',
+        ];
+
+        $merged = [];
+        foreach ($map as $camel => $snake) {
+            if ($request->has($camel) && ! $request->filled($snake)) {
+                $merged[$snake] = $request->input($camel);
+            }
+        }
+
+        if ($merged !== []) {
+            $request->merge($merged);
+        }
     }
 }
