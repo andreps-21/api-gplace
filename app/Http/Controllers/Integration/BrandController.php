@@ -37,11 +37,16 @@ class BrandController extends BaseController
             return $this->sendError('Erro de Validação.', $validator->errors()->toArray(), 422);
         }
 
-        $inputs = $request->all();
-        $inputs['tenant_id'] = $request->get('store')['tenant_id'];
-        Brand::create($inputs);
+        $v = $validator->validated();
+        $brand = Brand::create([
+            'name' => $v['name'],
+            'is_enabled' => (bool) ($v['is_enabled'] ?? true),
+            'is_public' => (bool) ($v['is_public'] ?? true),
+            'tenant_id' => $request->get('store')['tenant_id'],
+            'image' => $request->hasFile('image') ? $request->file('image')->store('brands', 'public') : null,
+        ]);
 
-        return $this->sendResponse([], "Registro criado com sucesso.");
+        return $this->sendResponse($brand->fresh()->append('image_url'), 'Registro criado com sucesso.', 201);
     }
 
     public function show(Request $request, $id)
@@ -115,11 +120,11 @@ class BrandController extends BaseController
         $rules = [
             'name' => [
                 'required', 'max:30', 'min:3',
-                Rule::unique('brands')->where('tenant_id', $request->get('store')['tenant_id'])->ignore($primaryKey)
+                Rule::unique('brands')->where('tenant_id', $request->get('store')['tenant_id'])->ignore($primaryKey),
             ],
-            'is_enabled' => ['required', 'boolean'],
-            'is_public' => ['required', 'boolean'],
-            'image' => ['image', 'mimes:jpeg,png,jpg,gif,svg', 'max:2048']
+            'is_enabled' => ['sometimes', 'boolean'],
+            'is_public' => ['sometimes', 'boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg', 'max:2048'],
         ];
 
         $messages = [];

@@ -172,7 +172,7 @@ class ProductController extends BaseController
             'height' => ['required', 'numeric'],
             'length' => ['required', 'numeric'],
             'cubic_weight' => ['nullable', 'numeric'],
-            'brand_id' => ['required', 'exists:brands,id'],
+            'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'is_enabled' => ['required', 'boolean'],
             'sections' => ['nullable', 'array'],
             'sections.*' => ['required', 'exists:sections,id'],

@@ -12,6 +12,35 @@ class Section extends Model
 {
     use HasFactory, NodeTrait;
 
+    /**
+     * Laravel 9 não tem {@see Model::whenBooted()}; versões recentes de `kalnoy/nestedset` usam-no em
+     * `NodeTrait::bootNodeTrait()` e o modelo deixa de arrancar. Registamos os mesmos eventos sem deferral.
+     */
+    public static function bootNodeTrait(): void
+    {
+        static::saving(function ($model) {
+            return $model->callPendingAction();
+        });
+
+        static::deleting(function ($model) {
+            $model->refreshNode();
+        });
+
+        static::deleted(function ($model) {
+            $model->deleteDescendants();
+        });
+
+        if (static::usesSoftDelete()) {
+            static::restoring(function ($model) {
+                static::$deletedAt = $model->{$model->getDeletedAtColumn()};
+            });
+
+            static::restored(function ($model) {
+                $model->restoreDescendants(static::$deletedAt);
+            });
+        }
+    }
+
     protected $fillable = [
         'name', 'descriptive',
         'type', 'use', 'is_enabled',

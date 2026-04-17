@@ -173,13 +173,13 @@
                 </div>
                 <div class="col-md-2">
                     {!!Form::text('vl_total', 'Vl.Total do Pedido')
-                    ->attrs(['maxlength' => 15])
+                    ->attrs(['class' => 'money', 'maxlength' => 15])
                     ->readonly()
                     !!}
                 </div>
                 <div class="col-md-2">
                     {!!Form::text('vl_spots', 'Vl.Total de Pontos')
-                    ->attrs(['maxlength' => 15])
+                    ->attrs(['class' => 'money', 'maxlength' => 15])
                     ->readonly()
                     !!}
                 </div>

@@ -31,10 +31,14 @@ class MeasurementUnitController extends BaseController
             return $this->sendError('Erro de Validação.', $validator->errors()->toArray(), 422);
         }
 
-        $inputs = $request->all();
-        MeasurementUnit::create($inputs);
+        $v = $validator->validated();
+        $unit = MeasurementUnit::create([
+            'initials' => $v['initials'],
+            'name' => $v['name'],
+            'is_enabled' => (bool) ($v['is_enabled'] ?? true),
+        ]);
 
-        return $this->sendResponse([], "Registro criado com sucesso.");
+        return $this->sendResponse($unit->fresh(), 'Registro criado com sucesso.', 201);
     }
 
     public function show($id)
@@ -69,14 +73,7 @@ class MeasurementUnitController extends BaseController
 
     public function destroy(Request $request, $id)
     {
-        $tenant = $request->get('store')['tenant_id'];
-
-        $measurement = MeasurementUnit::query()
-            ->select('id', 'name', 'image')
-            ->orderBy('name')
-            ->where('tenant_id', $tenant)
-            ->where('id', $id)
-            ->firstOrFail();
+        $measurement = MeasurementUnit::query()->whereKey($id)->firstOrFail();
 
         try {
             $measurement->delete();
@@ -92,7 +89,7 @@ class MeasurementUnitController extends BaseController
         $rules = [
             'initials' => ['required', 'max:4', Rule::unique('measurement_units')->ignore($primaryKey)],
             'name' => ['required', 'max:20'],
-            'is_enabled' => ['required'],
+            'is_enabled' => ['sometimes', 'boolean'],
         ];
 
         $messages = [];

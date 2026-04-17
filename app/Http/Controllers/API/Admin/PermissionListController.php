@@ -10,7 +10,7 @@ class PermissionListController extends BaseController
 {
     public function __invoke(Request $request)
     {
-        $perPage = min(100, max(5, (int) $request->query('per_page', 15)));
+        $perPage = min(500, max(5, (int) $request->query('per_page', 15)));
 
         $paginator = Permission::query()
             ->orderBy('description')

@@ -28,9 +28,10 @@ class Product extends Model
     protected $fillable = [
 
         'video', 'reference', 'origin',
+        'ncm', 'cest', 'cfop_default', 'csosn_default', 'cst_icms_default', 'nf_number',
         'commercial_name', 'description',
         'um_id', 'tag', 'price',
-        'promotion_price', 'discount', 'spots',
+        'promotion_price', 'invoice_price', 'discount', 'spots',
         'scores', 'payment_condition',
         'weight', 'cubic_weight', 'length', 'width', 'height',
         'brand_id', 'model', 'presentation_id', 'family_id',
@@ -40,7 +41,7 @@ class Product extends Model
         'is_enabled', 'sync_at', 'section_id',
         'type', 'quantity', 'min_stock', 'type_sale', 'is_grid',
         'description_reference', 'store_id', 'specification',
-        'external_id'
+        'external_id', 'sku',
     ];
 
     protected $appends = ['promotion_percent', 'score_number'];
@@ -197,8 +198,8 @@ class Product extends Model
             'measurement_units.initials as um'
         )
             ->leftJoin('families', 'families.id', '=', 'products.family_id')
-            ->join('brands', 'brands.id', '=', 'products.brand_id')
-            ->join('sections', 'sections.id', '=', 'products.section_id')
+            ->leftJoin('brands', 'brands.id', '=', 'products.brand_id')
+            ->leftJoin('sections', 'sections.id', '=', 'products.section_id')
             ->join('measurement_units', 'measurement_units.id', '=', 'products.um_id');
     }
 
@@ -208,6 +209,19 @@ class Product extends Model
         $codigo = self::generateReference();
 
         return self::isVerified($codigo);
+    }
+
+    /**
+     * Referência única para a loja (API / contextos sem sessão «store»).
+     */
+    public static function getReferenceForStore(int $storeId): string
+    {
+        $codigo = self::generateReference();
+        while (self::query()->where('reference', $codigo)->where('store_id', $storeId)->exists()) {
+            $codigo = self::generateReference();
+        }
+
+        return $codigo;
     }
 
     private static function isVerified($codigo)

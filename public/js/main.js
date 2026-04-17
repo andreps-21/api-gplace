@@ -210,6 +210,23 @@
         $clone.find('.created-at').prop('readonly' , false)
         $clone.find('.created-at').val(new Date().toISOString().split('T')[0])
         $table.append($clone);
+        $clone.find(".money").each(function () {
+            var $el = $(this);
+            try {
+                $el.maskMoney("destroy");
+            } catch (e) {}
+            $el.maskMoney({ thousands: ".", decimal: ",", allowZero: true });
+            $el.attr("maxlength", "14");
+        });
+        $clone.find(".quantity").each(function () {
+            var $el = $(this);
+            try {
+                $el.unmask();
+            } catch (e) {}
+            $el.mask("0000,00", {
+                reverse: true,
+            });
+        });
         setTimeout(function () {
             $("tbody select.select2").select2({
                 language: "pt-BR",

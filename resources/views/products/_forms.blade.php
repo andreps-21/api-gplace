@@ -106,7 +106,7 @@
       <div class="col-md-6">
         <div class="row">
           <div class="col-md-8">
-            {!! Form::text('commercial_name', 'Nome Comercial')->attrs(['maxlength' => 60])->required()->readonly(isset($item) && $item->is_grid) !!}
+            {!! Form::text('commercial_name', isset($item) ? 'Nome Comercial' : 'Descrição do Produto/Serviço')->attrs(['maxlength' => 60])->required()->readonly(isset($item) && $item->is_grid) !!}
           </div>
           <div class="col-md-4">
             {!! Form::select('is_grid', 'Usa Grade', [0 => 'Não', 1 => 'Sim'])->id('is_grid')->readOnly(isset($item) ? true : false) !!}
@@ -153,7 +153,7 @@
     {!! Form::text('model', 'Modelo')->required() !!}
   </div>
   <div class="col-md-2">
-    {!! Form::select('brand_id', 'Marca')->options($brands->prepend('Selecione', ''), 'name')->attrs(['class' => 'select2'])->required() !!}
+    {!! Form::select('brand_id', 'Marca (opcional)')->options($brands->prepend('Selecione', ''), 'name')->attrs(['class' => 'select2']) !!}
   </div>
   <div class="col-md-2">
     {!! Form::text('price', 'Preço')->value(isset($item) ? floatToMoney($item->price) : 0)->attrs(['class' => 'money'])->required() !!}

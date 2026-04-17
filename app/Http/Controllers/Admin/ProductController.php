@@ -142,6 +142,7 @@ class ProductController extends Controller
         )->validate();
 
         $inputs = $request->all();
+        $inputs['brand_id'] = $request->filled('brand_id') ? $request->brand_id : null;
         $inputs['price'] = moneyToFloat($request->price);
         $inputs['discount'] = moneyToFloat($request->discount);
         $inputs['weight'] = moneyToFloat($request->weight);
@@ -306,6 +307,7 @@ class ProductController extends Controller
 
         DB::transaction(function () use ($request, $item) {
             $inputs = $request->all();
+            $inputs['brand_id'] = $request->filled('brand_id') ? $request->brand_id : null;
 
             $inputs['price'] = moneyToFloat($request->price);
             $inputs['discount'] = moneyToFloat($request->discount);
@@ -457,7 +459,7 @@ class ProductController extends Controller
             'height' => ['required'],
             'length' => ['required'],
             'cubic_weight' => ['nullable'],
-            'brand_id' => ['required'],
+            'brand_id' => ['nullable', 'exists:brands,id'],
             'about' => ['nullable', 'max:200'],
             'recommendation' => ['nullable', 'max:200'],
             'benefits' => ['nullable', 'max:200'],

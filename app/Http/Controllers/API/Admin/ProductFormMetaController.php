@@ -18,12 +18,26 @@ class ProductFormMetaController extends BaseController
     {
         $storeId = (int) $request->attributes->get('store')['id'];
 
+        /*
+         * Secções: modelo com NestedSet (`_lft` / `_rgt`). Evitar `orderBy('order')` — a coluna `order`
+         * pode não existir em bases antigas; a ordem hierárquica correcta é por `_lft`.
+         * Incluir `_lft`/`_rgt` no select para o NodeTrait não falhar com colunas em falta.
+         */
+        $sections = Section::query()
+            ->where('store_id', $storeId)
+            ->where('is_enabled', true)
+            ->defaultOrder()
+            ->get(['id', 'name', 'parent_id', '_lft', '_rgt'])
+            ->map(static fn (Section $s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'parent_id' => $s->parent_id,
+            ])
+            ->values()
+            ->all();
+
         return $this->sendResponse([
-            'sections' => Section::query()
-                ->where('store_id', $storeId)
-                ->where('is_enabled', true)
-                ->orderBy('order')
-                ->get(['id', 'name', 'parent_id']),
+            'sections' => $sections,
             'measurement_units' => MeasurementUnit::query()
                 ->where('is_enabled', true)
                 ->orderBy('name')

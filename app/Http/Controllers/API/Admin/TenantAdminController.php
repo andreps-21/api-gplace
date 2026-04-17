@@ -142,11 +142,29 @@ class TenantAdminController extends BaseController
                 }
 
                 $tenant->load('people');
-                $newRole = $role->replicate();
-                $newRole->created_at = now();
-                $newRole->updated_at = now();
-                $newRole->name = 'contratante-' . Str::slug($tenant->people->name);
-                $newRole->save();
+                // Nome único por tenant (evita violação de unique em roles ao recriar contratante após delete)
+                // e tenant_id para o papel ser removido em cascata quando o tenant for apagado.
+                $slug = Str::slug((string) $tenant->people->name);
+                if ($slug === '') {
+                    $slug = 'tenant';
+                }
+                $uniqueRoleName = 'contratante-' . $slug . '-' . $tenant->id;
+
+                $newRole = Role::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('guard_name', $role->guard_name)
+                    ->where('name', $uniqueRoleName)
+                    ->first();
+
+                if (! $newRole) {
+                    $newRole = $role->replicate();
+                    $newRole->created_at = now();
+                    $newRole->updated_at = now();
+                    $newRole->name = $uniqueRoleName;
+                    $newRole->tenant_id = $tenant->id;
+                    $newRole->save();
+                }
+
                 $newRole->permissions()->sync($role->permissions);
                 $user->roles()->detach();
                 $user->roles()->attach($newRole->id);
