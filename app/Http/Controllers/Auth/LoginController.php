@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use App\Support\DevAdminPassword;
+use App\Support\LoginPasswordNormalizer;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -53,12 +54,20 @@ class LoginController extends Controller
 
         if ($user) {
             DevAdminPassword::syncStoredHashIfStale($user);
+            $user->refresh();
         }
 
-        return $this->guard()->attempt(
-            $this->credentials($request),
-            $request->filled('remember')
-        );
+        $base = $this->credentials($request);
+        $remember = $request->filled('remember');
+
+        foreach (LoginPasswordNormalizer::candidates((string) $request->input('password', '')) as $candidate) {
+            $base['password'] = $candidate;
+            if ($this->guard()->attempt($base, $remember)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

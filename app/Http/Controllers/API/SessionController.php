@@ -5,8 +5,8 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\DevAdminPassword;
+use App\Support\LoginPasswordNormalizer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
@@ -39,7 +39,7 @@ class SessionController extends BaseController
             $user->refresh();
         }
 
-        if (! $user || ! Hash::check($inputs['password'], $user->password)) {
+        if (! $user || ! LoginPasswordNormalizer::matchesHash((string) $inputs['password'], $user->password)) {
             return $this->sendError('Email ou senha inválidos', [], 401);
         }
 
