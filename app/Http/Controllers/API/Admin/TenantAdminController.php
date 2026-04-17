@@ -96,7 +96,9 @@ class TenantAdminController extends BaseController
         $validator = Validator::make($request->all(), $this->rules($person?->id));
 
         if ($validator->fails()) {
-            return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
+            $bag = $validator->errors()->toArray();
+
+            return $this->sendError($this->firstValidationMessage($validator), $bag, 422);
         }
 
         $validated = $validator->validated();
@@ -170,7 +172,9 @@ class TenantAdminController extends BaseController
         $validator = Validator::make($request->all(), $this->rules($item->person_id));
 
         if ($validator->fails()) {
-            return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
+            $bag = $validator->errors()->toArray();
+
+            return $this->sendError($this->firstValidationMessage($validator), $bag, 422);
         }
 
         $validated = $validator->validated();
@@ -230,25 +234,31 @@ class TenantAdminController extends BaseController
 
     private function rules(?int $personId = null): array
     {
+        // Igual ao App\Http\Controllers\Admin\TenantsController (Blade) — evita 422 só na API.
         return [
             'name' => ['required', 'max:30'],
             'formal_name' => ['required', 'max:60'],
-            'nif' => ['required', 'max:20', new CpfCnpj, Rule::unique('people', 'nif')->ignore($personId)],
-            'city_id' => ['required', 'exists:cities,id'],
-            'email' => ['required', 'max:89', Rule::unique('people', 'email')->ignore($personId)],
+            'nif' => ['required', 'max:20', new CpfCnpj, Rule::unique('people')->ignore($personId)],
+            'city_id' => ['required'],
+            'email' => ['required', 'max:89', Rule::unique('people')->ignore($personId)],
             'phone' => ['required', 'max:15'],
             'street' => ['required', 'max:120'],
             'contact_phone' => ['nullable', 'max:15'],
             'contact' => ['nullable', 'max:120'],
             'status' => ['required'],
             'dt_accession' => ['required', 'date'],
-            // Coluna é string no BD; formato típico Y-m-d do input date.
-            'due_date' => ['required', 'string', 'max:32'],
-            // Blade não usa integer estrito; JSON pode enviar string — aceitar os valores do formulário.
-            'due_day' => ['required', Rule::in([5, 10, 15])],
+            'due_date' => ['required'],
+            'due_day' => ['required'],
             'value' => ['required'],
-            'signature' => ['required', Rule::in([1, 2, 3, 4, 5, 6])],
+            'signature' => ['required'],
         ];
+    }
+
+    private function firstValidationMessage(\Illuminate\Validation\Validator $validator): string
+    {
+        $first = $validator->errors()->first();
+
+        return $first !== '' ? 'Erro de validação: '.$first : 'Erro de validação.';
     }
 
     /**
