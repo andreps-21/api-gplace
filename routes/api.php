@@ -85,6 +85,8 @@ Route::prefix('v1')->group(function () {
                 Route::put('store-roles/{id}/permissions', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'syncPermissions']);
                 Route::get('permissions', App\Http\Controllers\API\Admin\PermissionListController::class);
                 Route::get('product-form-meta', App\Http\Controllers\API\Admin\ProductFormMetaController::class);
+                /** Mesmo que `GET /payment-methods` do catálogo (`app`), mas com loja do `user_store` — evita 403 no painel sem `NEXT_PUBLIC_APP_TOKEN`. */
+                Route::get('payment-methods', [App\Http\Controllers\API\PaymentMethodController::class, 'index']);
 
                 Route::get('store-faqs', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'index']);
                 Route::post('store-faqs', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'store']);
