@@ -21,19 +21,16 @@ Mensagens de validação comuns: HTTP **422** com `data` contendo os campos em e
 
 ---
 
-## 2. Cabeçalho `app` (identificação da loja)
+## 2. Contexto de loja: cabeçalho `app` vs. utilizador autenticado
 
-Grande parte dos endpoints sob **`/api/v1`** passam pelo middleware **`app`** (`CheckAppHeader`):
+Existem **dois** mecanismos que preenchem `store` no request (formato compatível com os controladores):
 
-| Cabeçalho | Obrigatório | Descrição |
-|-----------|-------------|-----------|
-| `app` | Sim (nesses endpoints) | Token da loja (`stores.app_token`). Identifica a loja e disponibiliza o contexto em `$request->attributes['store']`. |
+| Middleware | Quando aplica | Cabeçalho `app` | Comportamento |
+|------------|---------------|-----------------|----------------|
+| **`app`** (`CheckAppHeader`) | Catálogo público, registo de cliente na loja, pedidos/moradas do **cliente** na vitrine | **Obrigatório** nesses endpoints | Resolve a loja por `stores.app_token`. Erros típicos: **403** — `App ID não informada.` / `App ID não válida.` |
+| **`user_store`** (`BindAuthenticatedUserStore`) | Rotas do **painel** após `auth:api` (logout, perfil, dashboard, `/admin/*`, etc.) | **Opcional** | O utilizador tem de ter pelo menos uma loja no pivot `user_stores`. Usa a **primeira** loja (por `stores.id`) ou, se enviares `app` e for válido **e** o user pertencer a essa loja, usa essa. Erros: **403** sem loja associada; **500** se não for possível resolver a loja. |
 
-**Respostas de erro sem ou com token inválido:**
-
-- `403` — `{ "message": "App ID não informada." }` ou `{ "message": "App ID não válida." }`
-
-**Endpoints que *não* usam o middleware `app`:** estão declarados *fora* do grupo `Route::middleware(['app'])` em `routes/api.php` (ver secção 6).
+**Resumo:** o **login** (`POST /auth/login`) e a **recuperação de password** **não** exigem `app`. O **painel** autenticado por Passport **não** exige `app`; o **ecommerce / catálogo público** (e registo `POST /auth/users` na loja) **exigem** `app`.
 
 ---
 
@@ -45,15 +42,16 @@ O guard **`api`** usa o driver **`passport`**.
 |-----|-----------|
 | Rotas `auth:api` | `Authorization: Bearer {access_token}` |
 
-O token é obtido no **login** (`POST .../auth/login`). O utilizador tem de estar associado à loja do cabeçalho `app` (ver `SessionController`).
+O token obtém-se em **`POST /api/v1/auth/login`** com `email` e `password` **sem** obrigatoriedade do header `app`. Após o login, as rotas do painel usam **`auth:api` + `user_store`**: a loja activa vem do utilizador (ver secção 2).
 
-**Exemplo:**
+**Exemplo (perfil no painel — `app` opcional):**
 
 ```http
 GET /api/v1/auth/profile
-app: {app_token_da_loja}
 Authorization: Bearer {access_token}
 ```
+
+Se o utilizador tiver **várias** lojas, podes enviar `app: {app_token}` para forçar o contexto dessa loja (desde que o utilizador pertença a ela).
 
 **Rota utilitária (sem prefixo `v1` no ficheiro — atenção ao path):**
 
@@ -63,26 +61,46 @@ Authorization: Bearer {access_token}
 
 ---
 
-## 4. Endpoints com `app` + rotas públicas da loja
+## 4. Endpoints por grupo
 
-Base: **`/api/v1`** + cabeçalho **`app`**.
+Todas as URLs abaixo são relativas a **`/api/v1`**.
 
-### 4.1 Autenticação e conta (`/api/v1/auth/...`)
+### 4.1 Login e recuperação de password (sem middleware `app`)
 
 | Método | Path | `auth:api` | Descrição |
 |--------|------|------------|-----------|
-| POST | `/auth/login` | Não | `email`, `password` — devolve `user` + `token` (access token). |
-| POST | `/auth/users` | Não | Registo de utilizador / pessoa (regras em `UserController`). |
-| POST | `/auth/user-lead` | Não | Registo tipo lead (`UserLeadController`). |
+| POST | `/auth/login` | Não | `email`, `password` — devolve `user` + `token` (Passport). Não exige header `app`. |
 | POST | `/auth/password/email` | Não | Pedido de recuperação de password. |
 | POST | `/auth/password/code/check` | Não | Validação de código. |
 | POST | `/auth/password/reset` | Não | Reset de password com código. |
-| DELETE | `/auth/logout` | Sim | Revoga o token atual. |
-| GET | `/auth/profile` | Sim | Perfil do utilizador autenticado. |
-| PUT | `/auth/profile` | Sim | Atualiza perfil. |
-| POST | `/auth/change-password` | Sim | Alteração de password. |
 
-### 4.2 Catálogo e conteúdo (público com `app`)
+### 4.2 Painel autenticado (`auth:api` + `user_store`)
+
+Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, dashboard, vendas, estabelecimentos, notificações (stubs) e **`/admin/*`** (detalhe na secção 4.6).
+
+| Método | Path | Descrição |
+|--------|------|-----------|
+| DELETE | `/auth/logout` | Revoga o token actual. |
+| GET | `/auth/profile` | Perfil do utilizador autenticado. |
+| PUT | `/auth/profile` | Actualiza perfil. |
+| POST | `/auth/change-password` | Alteração de password. |
+| GET | `/dashboard/stats` | Estatísticas. |
+| GET | `/dashboard/faturamento` | Faturamento. |
+| GET | `/sales` | Listagem de vendas (loja resolvida por `user_store`). |
+| GET | `/establishments/stats` | Stats de estabelecimentos. |
+| GET | `/establishments` | Lista de estabelecimentos. |
+| GET | `/notifications/inbox` | Inbox (resposta mínima para o Next). |
+| POST | `/notifications/dismiss` | Dismiss de notificação. |
+| POST | `/notifications/dismiss-all` | Dismiss todas. |
+
+### 4.3 Registo na vitrine (middleware `app` obrigatório)
+
+| Método | Path | `auth:api` | Descrição |
+|--------|------|------------|-----------|
+| POST | `/auth/users` | Não | Registo de utilizador / pessoa na loja (`UserController`). |
+| POST | `/auth/user-lead` | Não | Registo tipo lead (`UserLeadController`). |
+
+### 4.4 Catálogo e conteúdo (público com `app`)
 
 | Método | Path | Descrição |
 |--------|------|-----------|
@@ -110,7 +128,7 @@ Base: **`/api/v1`** + cabeçalho **`app`**.
 | POST | `/validate-coupon` | Validação de cupão. |
 | GET | `/salesman` | Vendedores. |
 
-### 4.3 Pedidos e moradas (requerem `app` + `auth:api`)
+### 4.5 Pedidos e moradas do cliente na vitrine (`app` + `auth:api`)
 
 | Método | Path | Descrição |
 |--------|------|-----------|
@@ -123,9 +141,11 @@ Base: **`/api/v1`** + cabeçalho **`app`**.
 | PUT/PATCH | `/addresses/{id}` | Atualiza. |
 | DELETE | `/addresses/{id}` | Remove (pode falhar se houver pedidos vinculados). |
 
-### 4.4 Administração Gplace (`app` + `auth:api`)
+**Checkout (`POST /orders`):** valida estoque antes de criar o pedido: a soma das quantidades por `product_id` não pode exceder `products.quantity` da loja (`lockForUpdate`). Erro **422** com mensagem e `data.available` / `data.requested` quando insuficiente. Cada linha gera registo em **`stock_movements`** (`order_sale`).
 
-Migração das áreas de **configuração** e **gerenciamento** do Blade. O escopo da loja vem do cabeçalho **`app`** (como no painel web com sessão de loja).
+### 4.6 Administração Gplace (`auth:api` + `user_store`)
+
+Migração das áreas de **configuração** e **gerenciamento** do Blade. O escopo da loja é resolvido pelo middleware **`user_store`** (associação utilizador–loja; header **`app`** opcional para escolher loja). Não confundir com as secções **4.3–4.5**, onde o catálogo e o checkout do **cliente** na vitrine exigem o header **`app`**.
 
 **Módulos (resumo)**  
 | Módulo | Leitura na API | Escrita na API | Notas UI Next |
@@ -136,8 +156,8 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | Roles / Permissões | GET `/admin/store-roles`, GET `/admin/permissions` | — | Gestão Spatie complexa; apenas listagem. |
 | FAQ | GET `/admin/store-faqs` | POST/GET/PUT/DELETE `/admin/store-faqs` e `/{id}` | CRUD na página admin. |
 | Catálogos | GET `/admin/store-catalogs` | POST/GET/PUT/DELETE `/admin/store-catalogs` e `/{id}` | CRUD JSON; upload de imagem opcional via multipart no mesmo controlador Laravel. |
-| Tokens | GET `/admin/tokens` | POST/GET/PUT/DELETE `/admin/tokens` e `/{id}` | `store_id` omissão → loja do header; criação devolve `access_token_plain` uma vez. |
-| Tenant | GET `/admin/tenants`, GET `/admin/tenants/{id}` | PUT `/admin/tenants/{id}` | Apenas o titular da loja; UI com edição JSON. |
+| Tokens | GET `/admin/tokens` | POST/GET/PUT/DELETE `/admin/tokens` e `/{id}` | `store_id` omissão → loja do contexto (`user_store`); criação devolve `access_token_plain` uma vez. |
+| Tenant | GET `/admin/tenants`, GET `/admin/tenants/{id}` | POST `/admin/tenants`, PUT `/admin/tenants/{id}`, DELETE `/admin/tenants/{id}` | POST exige `tenants_create`; DELETE exige `tenants_delete` (não permite apagar o tenant da **loja activa** resolvida). Listagem completa se `tenants_create` ou `tenants_edit`; senão só o titular da loja activa. |
 | Clientes | GET `/admin/customers` | POST/GET/PUT/DELETE `/admin/customers` e `/{id}` | API completa; UI pode usar os mesmos endpoints (formulários extensos). |
 | Leads | GET `/admin/leads` | POST/GET/PUT/DELETE `/admin/leads` e `/{id}` | CRUD na página admin. |
 | Lojas | GET `/admin/stores` | POST/GET/PUT/DELETE `/admin/stores` e `/{id}` | API completa; `paymentMethods` opcional em create/update. |
@@ -155,7 +175,7 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | GET/POST | `/admin/parameters`, `/admin/parameters/{id}` | Lista e cria. |
 | GET/PUT/DELETE | `/admin/parameters/{id}` | Detalhe, actualização, remoção. |
 | GET | `/admin/store-users` | Utilizadores da loja (`page`, `per_page`, `search`). |
-| POST | `/admin/store-users/attach` | Corpo `{ "user_id": number }` — associa à loja do header. |
+| POST | `/admin/store-users/attach` | Corpo `{ "user_id": number }` — associa à loja do contexto (`user_store`). |
 | DELETE | `/admin/store-users/detach/{userId}` | Remove pivot loja–utilizador. |
 | GET | `/admin/store-roles` | Roles Spatie (`page`, `per_page`, `search`). |
 | GET | `/admin/permissions` | Permissões Spatie paginadas. |
@@ -165,8 +185,10 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | PUT/DELETE | `/admin/store-catalogs/{id}` | Actualiza / remove. |
 | GET/POST | `/admin/tokens`, `/admin/tokens/{id}` | Tokens (lista global); criação com token gerado no servidor. |
 | PUT/DELETE | `/admin/tokens/{id}` | Actualização (`regenerate_token` boolean opcional); remoção. |
-| GET | `/admin/tenants` | Titular do `tenant_id` da loja do header. |
-| GET/PUT | `/admin/tenants/{id}` | Detalhe e actualização (só se `{id}` for o tenant da loja). |
+| GET | `/admin/tenants` | Titular(is): só o da loja activa, ou listagem completa se o utilizador tiver `tenants_create` ou `tenants_edit`. |
+| POST | `/admin/tenants` | Cria contratante (corpo igual ao PUT de actualização). Resposta 201; senha inicial do `User`: dígitos do NIF. |
+| GET/PUT | `/admin/tenants/{id}` | Detalhe e actualização: o próprio tenant da loja activa, ou outro `id` se `tenants_edit` / visualização se `tenants_create` ou `tenants_edit`. |
+| DELETE | `/admin/tenants/{id}` | Remove o tenant (`tenants_delete`). Bloqueado se `{id}` for o tenant da **loja activa** ou se existirem vínculos (lojas, etc.). |
 | GET/POST | `/admin/customers`, `/admin/customers/{id}` | Clientes do tenant. |
 | PUT/DELETE | `/admin/customers/{id}` | Actualização / remoção (transacção alinhada ao Blade). |
 | GET/POST | `/admin/leads`, `/admin/leads/{id}` | Leads da loja. |
@@ -178,20 +200,20 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | GET/POST | `/admin/products`, `/admin/products/{id}` | Produtos da loja; resposta inclui **`quantity`** (saldo em estoque). |
 | PUT/DELETE | `/admin/products/{id}` | Actualização / remoção; corpo inclui **`quantity`** (inteiro ≥ 0). |
 
-**Pedidos (checkout):** `POST /orders` valida estoque antes de criar o pedido: a soma das quantidades por `product_id` não pode exceder `products.quantity` da loja (`lockForUpdate`). Erro **422** com mensagem e `data.available` / `data.requested` quando insuficiente. Cada linha gera registo em **`stock_movements`** (`order_sale`).
-
 **Opção C (evolução):** tabelas **`warehouses`**, **`stock_lots`** (referência documental / custo / `quantity_remaining` para FIFO futuro) e **`stock_movements`** (auditoria). **Nota fiscal eletrónica (NF-e/NFC-e)** e **consumo FIFO nos pedidos** não estão implementados — exigem motor fiscal e regras de baixa por lote.
 
 Inventário completo das telas Blade vs API/UI: **`docs/FRONTEND-BLADE-MIGRACAO.md`**.
 
 ---
 
-## 5. Endpoints sem middleware `app`
+## 5. Endpoints sem middleware `app` (além do painel `user_store`)
 
-Estes endpoints estão em **`/api/v1`** mas **fora** do grupo `app` (não enviam `store` pelo middleware; consultar cada controlador para parâmetros).
+Estes endpoints estão em **`/api/v1`** **sem** o grupo `middleware(['app'])`. O **login** e a **recuperação de password** estão aqui; o **painel** autenticado usa `user_store` (secção 4.2). Consultar cada controlador para parâmetros.
 
 | Método | Path | Descrição |
 |--------|------|-----------|
+| POST | `/auth/login` | Ver secção 4.1. |
+| POST | `/auth/password/email`, `/auth/password/code/check`, `/auth/password/reset` | Ver secção 4.1. |
 | POST | `/pagseguro/notification` | Webhook / notificação PagSeguro (há duas declarações no `routes/api.php`; a ordem de registo determina qual controlador responde — em geral a última é `NotificationPagseguroController`). |
 | GET | `/get-person-by-nif` | Dados de pessoa por NIF (query `nif`). |
 | POST | `/get-user-by-nif` | Utilizador por NIF. |
@@ -246,7 +268,8 @@ Configuração em `config/cors.php` e middleware `HandleCors`. Em desenvolviment
 | Ficheiro | Conteúdo |
 |----------|----------|
 | `routes/api.php` | Lista oficial de rotas. |
-| `app/Http/Middleware/CheckAppHeader.php` | Validação do header `app`. |
+| `app/Http/Middleware/CheckAppHeader.php` | Validação do header `app` (catálogo / vitrine). |
+| `app/Http/Middleware/BindAuthenticatedUserStore.php` | Middleware `user_store`: loja do utilizador autenticado (header `app` opcional). |
 | `app/Http/Middleware/ValidatedToken.php` | Integração Bearer + `app`. |
 | `app/Http/Controllers/API/*` | Controladores da API “loja”. |
 | `app/Http/Controllers/API/Admin/*` | Endpoints de administração Gplace (migração Blade). |
@@ -258,7 +281,7 @@ Para detalhes de *body* (campos obrigatórios), a fonte de verdade são as regra
 
 ## 10. OAuth / Passport no ambiente
 
-O login em `POST /api/v1/auth/login` valida email/password com `Hash::check` (não usa `Auth::attempt` do guard `web`, porque as rotas `api/*` não têm sessão e isso gerava 500). Em seguida chama `$user->createToken(...)` (Passport). **Sem infraestrutura Passport completa o servidor devolve HTTP 500 ou 503.**
+O login em `POST /api/v1/auth/login` valida email/password com `Hash::check` (não usa `Auth::attempt` do guard `web`, porque as rotas `api/*` não têm sessão e isso gerava 500). Em seguida chama `$user->createToken(...)` (Passport). **Sem infraestrutura Passport completa o servidor devolve HTTP 500 ou 503.** O login **não** depende do header `app`.
 
 No servidor (após `composer install` e `.env` com base de dados):
 
@@ -284,9 +307,9 @@ Repositório à parte (ou pasta ignorada no Git da API). Variáveis em **`.env.l
 | Variável | Exemplo | Descrição |
 |----------|---------|-----------|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8005/api/v1` (dev) ou `https://api-gplace.gooding.solutions/api/v1` (produção) | Base da API. |
-| `NEXT_PUBLIC_APP_TOKEN` | `gplace-local-frontend` (dev) ou `stores.app_token` | Em **local**, o seeder `LocalDevStoreSeeder` cria uma loja com token fixo `gplace-local-frontend` e liga ao `admin@gooding.solutions`. O `next dev` usa esse valor por omissão. Em produção, usar o token real da loja. |
+| `NEXT_PUBLIC_APP_TOKEN` | `gplace-local-frontend` (dev) ou `stores.app_token` | **Obrigatório** para chamadas ao **catálogo público / vitrine** (`products`, `home`, etc.) e fluxos que usam o middleware `app`. **Opcional** para o **painel** só com login (Passport): a API infere a loja pelo utilizador; define o token se quiseres forçar uma loja ou testar a vitrine. Em local, sem variável, o cliente pode usar o token de desenvolvimento `gplace-local-frontend` quando a API é local (ver `lib/public-env.ts`). |
 
-O cliente HTTP em `frontend-api-gplace/lib/api.ts` define `Authorization: Bearer` após login (Passport) e o header `app` a partir de `NEXT_PUBLIC_APP_TOKEN`.
+O cliente HTTP em `frontend-api-gplace/lib/api.ts` envia `Authorization: Bearer` após login e o header `app` quando `getResolvedAppToken()` devolve valor; avisos no consola sobre `app` aplicam-se sobretudo a rotas de catálogo/ecommerce.
 
 ### Produção: obter ou regenerar o `app_token`
 

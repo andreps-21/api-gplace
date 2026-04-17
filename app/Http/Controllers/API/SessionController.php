@@ -58,16 +58,8 @@ class SessionController extends BaseController
             return $this->sendError('Usuário bloqueado, favor contactar a loja.', [], 401);
         }
 
-        $storeContext = $request->get('store');
-        if (! is_array($storeContext) || empty($storeContext['id'])) {
-            return $this->sendError('Contexto da loja inválido.', [], 500);
-        }
-
-        $storeId = (int) $storeContext['id'];
-
-        if (! $user->stores->contains($storeId)) {
-            return $this->sendError('Usuário não cadastrado nessa loja.', [], 401);
-        }
+        // Login sem header «app»: o contexto de loja nas rotas autenticadas é resolvido por
+        // BindAuthenticatedUserStore (primeira loja do utilizador ou header «app» opcional).
 
         try {
             $token = $user->createToken('gplace-session');

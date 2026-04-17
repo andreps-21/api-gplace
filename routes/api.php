@@ -29,52 +29,27 @@ Route::prefix('v1')->group(function () {
     ])->name('pagseguro.notification');
 
     Route::name('api.v1.')->group(function () {
-    Route::middleware(['app'])->group(function () {
-        Route::group(['prefix' => 'auth'], function () {
+        /*
+        | Login e recuperação de senha sem header «app» (painel / Blade).
+        */
+        Route::prefix('auth')->group(function () {
             Route::post('login', [App\Http\Controllers\API\SessionController::class, 'store']);
-            Route::post('users', [App\Http\Controllers\API\UserController::class, 'store']);
-            Route::post('user-lead', [App\Http\Controllers\API\UserLeadController::class, 'store']);
-
-
-            Route::post('password/email',  App\Http\Controllers\API\ForgotPasswordController::class);
+            Route::post('password/email', App\Http\Controllers\API\ForgotPasswordController::class);
             Route::post('password/code/check', App\Http\Controllers\API\CodeCheckController::class);
             Route::post('password/reset', App\Http\Controllers\API\ResetPasswordController::class);
+        });
 
-
-            Route::middleware('auth:api')->group(function () {
+        /*
+        | Área autenticada do painel: Bearer Passport + loja inferida do utilizador
+        | (header «app» opcional para escolher loja quando o user tem várias).
+        */
+        Route::middleware(['auth:api', 'user_store'])->group(function () {
+            Route::prefix('auth')->group(function () {
                 Route::delete('logout', [App\Http\Controllers\API\SessionController::class, 'destroy']);
                 Route::get('profile', [App\Http\Controllers\API\ProfileController::class, 'show']);
                 Route::put('profile', [App\Http\Controllers\API\ProfileController::class, 'update']);
                 Route::post('change-password', App\Http\Controllers\API\ChangePasswordController::class);
             });
-        });
-
-        Route::apiResource('products', App\Http\Controllers\API\ProductController::class)->only('index', 'show');
-        Route::apiResource('faqs', App\Http\Controllers\API\FaqController::class)->only('index', 'show');
-        Route::apiResource('catalogs', App\Http\Controllers\API\CatalogController::class)->only('index', 'show');
-        Route::apiResource('leads', App\Http\Controllers\API\LeadController::class)->only(['store']);
-        Route::get('brands', [App\Http\Controllers\API\BrandController::class, 'index']);
-        Route::get('sections', [App\Http\Controllers\API\SectionController::class, 'index']);
-        Route::get('sections-home', [App\Http\Controllers\API\SectionHomeController::class, 'index']);
-        Route::post('calc-freight', App\Http\Controllers\API\CalcFreightController::class);
-        Route::get('banners', [App\Http\Controllers\API\BannerController::class, 'index']);
-        Route::post('pagseguro-installments', App\Http\Controllers\API\GetInstallmentsController::class);
-        Route::get('parameters', [App\Http\Controllers\API\ParameterController::class, 'index']);
-        Route::post('contact', App\Http\Controllers\API\ContactController::class);
-        Route::get('payment-methods', [App\Http\Controllers\API\PaymentMethodController::class, 'index']);
-        Route::get('settings', [App\Http\Controllers\API\SettingsController::class, 'index']);
-        Route::get('public-key', App\Http\Controllers\API\PublicKeyController::class);
-        Route::get('pagseguro-session', App\Http\Controllers\API\PagseguroSessionController::class);
-        Route::post('pagseguro-installments', App\Http\Controllers\API\PagseguroInstallmentController::class);
-        Route::get('home', App\Http\Controllers\API\HomeController::class);
-
-        Route::get('coupons', [App\Http\Controllers\API\CouponController::class, 'index']);
-        Route::post('validate-coupon', App\Http\Controllers\API\ValidateCouponController::class);
-        Route::get('salesman', [App\Http\Controllers\API\SalesmanController::class, 'index']);
-
-        Route::middleware('auth:api')->group(function () {
-            Route::apiResource('orders', App\Http\Controllers\API\OrderController::class)->only(['index', 'show', 'store']);
-            Route::apiResource('addresses', App\Http\Controllers\API\AddressController::class);
 
             Route::get('dashboard/stats', [App\Http\Controllers\API\DashboardController::class, 'stats']);
             Route::get('dashboard/faturamento', [App\Http\Controllers\API\DashboardController::class, 'faturamento']);
@@ -129,8 +104,10 @@ Route::prefix('v1')->group(function () {
                 Route::delete('tokens/{id}', [App\Http\Controllers\API\Admin\TokenAdminController::class, 'destroy']);
 
                 Route::get('tenants', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'index']);
+                Route::post('tenants', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'store']);
                 Route::get('tenants/{id}', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'show']);
                 Route::put('tenants/{id}', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'update']);
+                Route::delete('tenants/{id}', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'destroy']);
 
                 Route::get('customers', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'index']);
                 Route::post('customers', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'store']);
@@ -176,7 +153,45 @@ Route::prefix('v1')->group(function () {
                 Route::apiResource('measurement-units', App\Http\Controllers\Integration\MeasurementUnitController::class);
             });
         });
-    });
+
+        /*
+        | Ecommerce / catálogo público: identifica a loja pelo header «app».
+        | Pedidos e moradas do cliente continuam com app + Passport.
+        */
+        Route::middleware(['app'])->group(function () {
+            Route::prefix('auth')->group(function () {
+                Route::post('users', [App\Http\Controllers\API\UserController::class, 'store']);
+                Route::post('user-lead', [App\Http\Controllers\API\UserLeadController::class, 'store']);
+            });
+
+            Route::apiResource('products', App\Http\Controllers\API\ProductController::class)->only('index', 'show');
+            Route::apiResource('faqs', App\Http\Controllers\API\FaqController::class)->only('index', 'show');
+            Route::apiResource('catalogs', App\Http\Controllers\API\CatalogController::class)->only('index', 'show');
+            Route::apiResource('leads', App\Http\Controllers\API\LeadController::class)->only(['store']);
+            Route::get('brands', [App\Http\Controllers\API\BrandController::class, 'index']);
+            Route::get('sections', [App\Http\Controllers\API\SectionController::class, 'index']);
+            Route::get('sections-home', [App\Http\Controllers\API\SectionHomeController::class, 'index']);
+            Route::post('calc-freight', App\Http\Controllers\API\CalcFreightController::class);
+            Route::get('banners', [App\Http\Controllers\API\BannerController::class, 'index']);
+            Route::post('pagseguro-installments', App\Http\Controllers\API\GetInstallmentsController::class);
+            Route::get('parameters', [App\Http\Controllers\API\ParameterController::class, 'index']);
+            Route::post('contact', App\Http\Controllers\API\ContactController::class);
+            Route::get('payment-methods', [App\Http\Controllers\API\PaymentMethodController::class, 'index']);
+            Route::get('settings', [App\Http\Controllers\API\SettingsController::class, 'index']);
+            Route::get('public-key', App\Http\Controllers\API\PublicKeyController::class);
+            Route::get('pagseguro-session', App\Http\Controllers\API\PagseguroSessionController::class);
+            Route::post('pagseguro-installments', App\Http\Controllers\API\PagseguroInstallmentController::class);
+            Route::get('home', App\Http\Controllers\API\HomeController::class);
+
+            Route::get('coupons', [App\Http\Controllers\API\CouponController::class, 'index']);
+            Route::post('validate-coupon', App\Http\Controllers\API\ValidateCouponController::class);
+            Route::get('salesman', [App\Http\Controllers\API\SalesmanController::class, 'index']);
+
+            Route::middleware('auth:api')->group(function () {
+                Route::apiResource('orders', App\Http\Controllers\API\OrderController::class)->only(['index', 'show', 'store']);
+                Route::apiResource('addresses', App\Http\Controllers\API\AddressController::class);
+            });
+        });
 
     Route::get('get-person-by-nif', App\Http\Controllers\API\GetPersonByNifController::class);
     Route::post('get-user-by-nif', App\Http\Controllers\API\GetUserByNifController::class);

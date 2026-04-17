@@ -25,11 +25,22 @@ class CpfCnpj implements Rule
      */
     public function passes($attribute, $value)
     {
-        if (strlen($value) == 11) {
-            return $this->validateCpf($value);
-        } else {
-            return $this->validateCnpj($value);
+        if ($value === null || $value === '') {
+            return false;
         }
+
+        $digits = preg_replace('/\D/', '', (string) $value);
+        $len = strlen($digits);
+
+        if ($len === 11) {
+            return $this->validateCpf($digits);
+        }
+
+        if ($len === 14) {
+            return $this->validateCnpj($digits);
+        }
+
+        return false;
     }
 
     /**

@@ -17,6 +17,14 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
+     * Spatie: roles/permissões na BD usam o guard `web`. O login da API usa Passport (`api`),
+     * mas é o mesmo modelo — forçar `web` evita falhas em `can()` / `hasPermissionTo()` no contexto API.
+     *
+     * @var string
+     */
+    protected $guard_name = 'web';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array

@@ -51,12 +51,14 @@ class RemoveMask
                 case 'phone':
                 case 'zip_code':
                 case 'nif':
-                    return removeMask($value);
-                    break;
+                    if ($value === null || $value === '') {
+                        return $value;
+                    }
+
+                    return removeMask((string) $value);
 
                 default:
                     return $value;
-                    break;
             }
         })->all();
     }

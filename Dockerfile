@@ -32,4 +32,4 @@ WORKDIR /var/www/html
 
 EXPOSE 8000
 # O bind mount do compose substitui a imagem: se no host ainda não há vendor, instala antes do artisan.
-CMD ["sh", "-c", "rm -f /var/www/html/bootstrap/cache/config.php && php /usr/local/bin/wait-for-mysql.php && if [ ! -f /var/www/html/vendor/autoload.php ]; then COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --prefer-dist --no-progress; fi && php artisan config:clear && exec php artisan serve --host=0.0.0.0 --port=8000"]
+CMD ["sh", "-c", "rm -f /var/www/html/bootstrap/cache/config.php /var/www/html/bootstrap/cache/routes-v7.php && php /usr/local/bin/wait-for-mysql.php && if [ ! -f /var/www/html/vendor/autoload.php ]; then COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --prefer-dist --no-progress; fi && php artisan config:clear && exec php artisan serve --host=0.0.0.0 --port=8000"]

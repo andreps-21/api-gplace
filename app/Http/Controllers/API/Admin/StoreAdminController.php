@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API\Admin;
 use App\Http\Controllers\API\BaseController;
 use App\Models\Person;
 use App\Models\Store;
+use App\Models\Tenant;
 use App\Rules\CpfCnpj;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,14 +19,73 @@ class StoreAdminController extends BaseController
         return (int) $request->attributes->get('store')['tenant_id'];
     }
 
+    /**
+     * Mesma regra que TenantAdminController: listar/gerir vários titulares.
+     */
+    private function canBrowseAllTenants(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user->hasPermissionTo('tenants_create', 'web')
+            || $user->hasPermissionTo('tenants_edit', 'web');
+    }
+
+    /**
+     * Titular da nova loja: cabeçalho «app», ou tenant_id no pedido se o utilizador puder gerir contratantes.
+     */
+    private function resolveTargetTenantIdForStore(Request $request): int
+    {
+        $headerTenantId = $this->tenantId($request);
+
+        if (! $this->canBrowseAllTenants($request)) {
+            return $headerTenantId;
+        }
+
+        $requested = $request->input('tenant_id');
+        if ($requested === null || $requested === '') {
+            return $headerTenantId;
+        }
+
+        $id = (int) $requested;
+        if ($id < 1) {
+            return $headerTenantId;
+        }
+
+        return Tenant::query()->whereKey($id)->exists() ? $id : $headerTenantId;
+    }
+
+    /**
+     * Ao editar: mantém o titular actual se não enviar tenant_id; se enviar e tiver permissão, altera.
+     */
+    private function resolveTenantIdForStoreUpdate(Request $request, Store $store): int
+    {
+        if (! $this->canBrowseAllTenants($request)) {
+            return (int) $store->tenant_id;
+        }
+
+        $requested = $request->input('tenant_id');
+        if ($requested === null || $requested === '') {
+            return (int) $store->tenant_id;
+        }
+
+        $id = (int) $requested;
+        if ($id < 1) {
+            return (int) $store->tenant_id;
+        }
+
+        return Tenant::query()->whereKey($id)->exists() ? $id : (int) $store->tenant_id;
+    }
+
     public function index(Request $request)
     {
-        $tenantId = $this->tenantId($request);
+        $headerTenantId = $this->tenantId($request);
         $perPage = min(100, max(5, (int) $request->query('per_page', 15)));
 
         $query = Store::person()
             ->with(['tenant.people'])
-            ->where('stores.tenant_id', $tenantId)
+            ->when(! $this->canBrowseAllTenants($request), function ($q) use ($headerTenantId) {
+                $q->where('stores.tenant_id', $headerTenantId);
+            })
             ->when($request->filled('search'), function ($q) use ($request) {
                 $s = $request->query('search');
                 $q->where(function ($sub) use ($s) {
@@ -47,7 +107,7 @@ class StoreAdminController extends BaseController
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
-        $tenantId = $this->tenantId($request);
+        $tenantId = $this->resolveTargetTenantIdForStore($request);
 
         $store = null;
         DB::transaction(function () use ($request, $tenantId, &$store) {
@@ -76,21 +136,33 @@ class StoreAdminController extends BaseController
 
     public function show(Request $request, int $id)
     {
-        $tenantId = $this->tenantId($request);
-        $item = Store::person()
+        $headerTenantId = $this->tenantId($request);
+        $query = Store::person()
             ->with('paymentMethods')
-            ->where('stores.tenant_id', $tenantId)
-            ->findOrFail($id);
+            ->when(! $this->canBrowseAllTenants($request), function ($q) use ($headerTenantId) {
+                $q->where('stores.tenant_id', $headerTenantId);
+            });
+
+        $item = $query->findOrFail($id);
 
         return $this->sendResponse($item);
     }
 
     public function update(Request $request, int $id)
     {
-        $tenantId = $this->tenantId($request);
-        $item = Store::query()->where('tenant_id', $tenantId)->findOrFail($id);
+        $headerTenantId = $this->tenantId($request);
+        $item = Store::query()
+            ->when(! $this->canBrowseAllTenants($request), function ($q) use ($headerTenantId) {
+                $q->where('tenant_id', $headerTenantId);
+            })
+            ->findOrFail($id);
 
-        $validator = Validator::make($request->all(), $this->rules($item->person_id));
+        $dataForValidation = $request->all();
+        if (! $this->canBrowseAllTenants($request)) {
+            unset($dataForValidation['tenant_id']);
+        }
+
+        $validator = Validator::make($dataForValidation, $this->rules($item->person_id));
 
         if ($validator->fails()) {
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
@@ -98,6 +170,12 @@ class StoreAdminController extends BaseController
 
         DB::transaction(function () use ($request, $item) {
             $inputs = $request->all();
+            if ($this->canBrowseAllTenants($request)) {
+                $inputs['tenant_id'] = $this->resolveTenantIdForStoreUpdate($request, $item);
+            } else {
+                unset($inputs['tenant_id']);
+            }
+
             $item->fill(collect($inputs)->only($item->getFillable())->all())->save();
             $person = Person::find($item->person_id);
             $person->fill(collect($inputs)->only($person->getFillable())->all())->save();
@@ -112,8 +190,12 @@ class StoreAdminController extends BaseController
 
     public function destroy(Request $request, int $id)
     {
-        $tenantId = $this->tenantId($request);
-        $item = Store::query()->where('tenant_id', $tenantId)->findOrFail($id);
+        $headerTenantId = $this->tenantId($request);
+        $item = Store::query()
+            ->when(! $this->canBrowseAllTenants($request), function ($q) use ($headerTenantId) {
+                $q->where('tenant_id', $headerTenantId);
+            })
+            ->findOrFail($id);
 
         try {
             $item->delete();
@@ -137,6 +219,7 @@ class StoreAdminController extends BaseController
             'status' => ['required'],
             'paymentMethods' => ['sometimes', 'array'],
             'paymentMethods.*' => ['integer', 'exists:payment_methods,id'],
+            'tenant_id' => ['sometimes', 'nullable', 'integer', Rule::exists('tenants', 'id')],
         ];
     }
 }

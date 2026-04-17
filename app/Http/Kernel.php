@@ -70,6 +70,7 @@ class Kernel extends HttpKernel
         'tenant' => \App\Http\Middleware\CheckTenantSession::class,
         'store' => \App\Http\Middleware\CheckStoreSession::class,
         'app' => \App\Http\Middleware\CheckAppHeader::class,
+        'user_store' => \App\Http\Middleware\BindAuthenticatedUserStore::class,
         'auth.integration' => \App\Http\Middleware\ValidatedToken::class,
     ];
 }
