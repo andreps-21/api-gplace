@@ -11,6 +11,7 @@ use App\Rules\CpfCnpj;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -189,11 +190,18 @@ class TenantAdminController extends BaseController
             $item->fill($tenantData)->save();
 
             $person = Person::find($item->person_id);
+            $oldNifDigits = preg_replace('/\D+/', '', (string) $person->nif);
             $person->fill(Arr::only($validated, $person->getFillable()))->save();
+            $newNifDigits = preg_replace('/\D+/', '', (string) $person->nif);
 
             $user = User::where('person_id', $item->person_id)->first();
-            if ($user && isset($validated['status'])) {
-                $user->is_enabled = (int) $validated['status'] === 1;
+            if ($user) {
+                if (isset($validated['status'])) {
+                    $user->is_enabled = (int) $validated['status'] === 1;
+                }
+                if ($newNifDigits !== '' && $oldNifDigits !== $newNifDigits) {
+                    $user->password = Hash::make($newNifDigits);
+                }
                 $user->save();
             }
         });

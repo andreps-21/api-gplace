@@ -50,7 +50,11 @@ class LoginController extends Controller
     protected function attemptLogin(Request $request)
     {
         $field = $this->username();
-        $user = User::query()->where($field, $request->{$field})->first();
+        $emailTrim = trim((string) $request->input($field, ''));
+        $user = $emailTrim === ''
+            ? null
+            : (User::query()->where($field, $emailTrim)->first()
+                ?? User::query()->whereRaw('TRIM(email) = ?', [$emailTrim])->first());
 
         if ($user) {
             DevAdminPassword::syncStoredHashIfStale($user);
@@ -60,7 +64,7 @@ class LoginController extends Controller
         $base = $this->credentials($request);
         $remember = $request->filled('remember');
 
-        foreach (LoginPasswordNormalizer::candidates((string) $request->input('password', '')) as $candidate) {
+        foreach (LoginPasswordNormalizer::candidates(trim((string) $request->input('password', ''))) as $candidate) {
             $base['password'] = $candidate;
             if ($this->guard()->attempt($base, $remember)) {
                 return true;
@@ -68,6 +72,20 @@ class LoginController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function credentials(Request $request)
+    {
+        $c = parent::credentials($request);
+        $field = $this->username();
+        if (isset($c[$field]) && is_string($c[$field])) {
+            $c[$field] = trim($c[$field]);
+        }
+
+        return $c;
     }
 
     /**

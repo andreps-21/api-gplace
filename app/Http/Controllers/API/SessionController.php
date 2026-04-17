@@ -26,20 +26,24 @@ class SessionController extends BaseController
         }
 
         $inputs = $request->all();
+        $emailTrim = trim((string) ($inputs['email'] ?? ''));
 
         /*
          * Não usar Auth::attempt() aqui: o guard `web` grava sessão (SessionGuard::login),
          * mas as rotas `api/*` não carregam StartSession — em produção isso provoca 500
          * ("Session store not set on request"). Validação manual + token Sanctum.
          */
-        $user = User::where('email', $inputs['email'])->first();
+        $user = $emailTrim === ''
+            ? null
+            : (User::query()->where('email', $emailTrim)->first()
+                ?? User::query()->whereRaw('TRIM(email) = ?', [$emailTrim])->first());
 
         if ($user) {
             DevAdminPassword::syncStoredHashIfStale($user);
             $user->refresh();
         }
 
-        if (! $user || ! LoginPasswordNormalizer::matchesHash((string) $inputs['password'], $user->password)) {
+        if (! $user || ! LoginPasswordNormalizer::matchesHash(trim((string) ($inputs['password'] ?? '')), $user->password)) {
             return $this->sendError('Email ou senha inválidos', [], 401);
         }
 
