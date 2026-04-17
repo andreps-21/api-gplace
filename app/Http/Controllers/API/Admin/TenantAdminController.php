@@ -242,11 +242,12 @@ class TenantAdminController extends BaseController
             'contact' => ['nullable', 'max:120'],
             'status' => ['required'],
             'dt_accession' => ['required', 'date'],
-            // Coluna é string no BD; o Blade não valida como date estrito. Valor monetário vem formatado (moeda BR).
+            // Coluna é string no BD; formato típico Y-m-d do input date.
             'due_date' => ['required', 'string', 'max:32'],
-            'due_day' => ['required', 'integer'],
+            // Blade não usa integer estrito; JSON pode enviar string — aceitar os valores do formulário.
+            'due_day' => ['required', Rule::in([5, 10, 15])],
             'value' => ['required'],
-            'signature' => ['required', 'integer'],
+            'signature' => ['required', Rule::in([1, 2, 3, 4, 5, 6])],
         ];
     }
 
@@ -317,6 +318,21 @@ class TenantAdminController extends BaseController
             if (preg_match('#^(\d{2})/(\d{2})/(\d{4})$#', $v, $m)) {
                 $request->merge([$dateField => "{$m[3]}-{$m[2]}-{$m[1]}"]);
             }
+        }
+
+        // JSON/JS pode enviar números como float ou strings; Rule::in compara estrito com int.
+        foreach (['due_day', 'signature', 'status'] as $k) {
+            if (! $request->has($k) || $request->input($k) === '' || $request->input($k) === null) {
+                continue;
+            }
+            $v = $request->input($k);
+            if (is_numeric($v)) {
+                $request->merge([$k => (int) $v]);
+            }
+        }
+
+        if ($request->filled('city_id') && is_numeric($request->input('city_id'))) {
+            $request->merge(['city_id' => (int) $request->input('city_id')]);
         }
     }
 }
