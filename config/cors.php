@@ -5,7 +5,7 @@
 | (evita produção sem nenhuma origem e browser a mostrar só "CORS Missing").
 */
 $corsOriginsFromEnv = env('CORS_ALLOWED_ORIGINS');
-$defaultOriginsList = 'https://gplace.gooding.solutions,https://www.gplace.gooding.solutions,http://localhost:3000,http://127.0.0.1:3000';
+$defaultOriginsList = 'https://gplace.gooding.solutions,https://www.gplace.gooding.solutions,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3005,http://127.0.0.1:3005';
 $corsOriginsList = (is_string($corsOriginsFromEnv) && trim($corsOriginsFromEnv) !== '')
     ? $corsOriginsFromEnv
     : $defaultOriginsList;
@@ -39,10 +39,12 @@ return [
 
     /*
     | HTTPS em subdomínios *.gooding.solutions (útil se o front usar outro host).
+    | Em APP_ENV=local, qualquer porta em localhost/127.0.0.1 (ex.: Next em :3005).
     */
-    'allowed_origins_patterns' => [
+    'allowed_origins_patterns' => array_values(array_filter([
         '#^https://([a-z0-9-]+\.)*gooding\.solutions$#i',
-    ],
+        env('APP_ENV') === 'local' ? '#^http://(localhost|127\.0\.0\.1):\d+$#' : null,
+    ])),
 
     'allowed_headers' => ['*'],
 

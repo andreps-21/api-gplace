@@ -1,12 +1,8 @@
 # Nome fixo do projeto: volumes/rede estáveis ao mudar de pasta.
 #
-# Portas padrão no host (convivem com os outros repos em fullstack/):
-#   api-gooding-agendamento → 8000, 3308, 8080
-#   api-gmonitora           → 8001, 3306, 8081
-#   api-apollo              → 8002, 3307, 8082
-#   api-ei-nobre (goombo)   → 8003, 3309, 8083, 9003
-#   api-gooding-cobranca    → 8004, 3310, 8084
-#   api-gplace              → 8005, 3311, 8085 (APP_PORT, MYSQL_PORT, PHPMYADMIN_PORT)
+# Portas padrão no host (FULLSTACK — ver também api-gooding-cobranca/docker-compose.yml):
+#   api-apollo → 8002, 3307, 8082 | api-goombo → 8003, 3309, 8083 | api-gooding-cobranca → 8004, 3310, 8084
+#   api-gplace → 8005, 3311, 8085 | api-tim → 8006, 3312, 8086 | api-genesis → 3313, 8087
 #
 # Sobrescreva no shell ou no .env na raiz: APP_PORT, MYSQL_PORT, PHPMYADMIN_PORT.
 # Com os defaults acima: APP_URL=http://localhost:8005 e DB_PORT=3311 se correr artisan no host contra este MySQL.
