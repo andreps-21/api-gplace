@@ -96,6 +96,87 @@ class ProductAdminController extends BaseController
     }
 
     /**
+     * Sugestões de NCM/CEST já usados em produtos da loja (autocomplete no formulário).
+     *
+     * @query string q  Prefixo numérico (1–8 para NCM, 1–20 para CEST)
+     * @query string field  ncm|cest  (default: ncm)
+     */
+    public function fiscalSuggest(Request $request)
+    {
+        $storeId = $this->storeId($request);
+        $field = (string) $request->query('field', 'ncm');
+        $q = preg_replace('/\D+/', '', (string) $request->query('q', ''));
+        if ($q === '') {
+            return $this->sendResponse([]);
+        }
+
+        if ($field === 'cest') {
+            $q = Str::limit($q, 20, '');
+            $rows = Product::query()
+                ->where('products.store_id', $storeId)
+                ->whereNotNull('products.cest')
+                ->where('products.cest', '!=', '')
+                ->where('products.cest', 'like', $q.'%')
+                ->orderBy('products.cest')
+                ->orderBy('products.id')
+                ->select(['products.cest', 'products.ncm'])
+                ->limit(50)
+                ->get();
+
+            $out = [];
+            $seen = [];
+            foreach ($rows as $r) {
+                $cest = (string) $r->cest;
+                if (isset($seen[$cest])) {
+                    continue;
+                }
+                $seen[$cest] = true;
+                $n = $r->ncm;
+                $out[] = [
+                    'cest' => $cest,
+                    'ncm' => $n !== null && $n !== '' ? (string) $n : null,
+                ];
+                if (count($out) >= 20) {
+                    break;
+                }
+            }
+
+            return $this->sendResponse($out);
+        }
+
+        $q = Str::limit($q, 8, '');
+
+        $rows = Product::query()
+            ->where('products.store_id', $storeId)
+            ->whereNotNull('products.ncm')
+            ->where('products.ncm', '!=', '')
+            ->where('products.ncm', 'like', $q.'%')
+            ->selectRaw('products.ncm, products.cest, COUNT(*) as use_count')
+            ->groupBy('products.ncm', 'products.cest')
+            ->orderBy('products.ncm')
+            ->orderBy('products.cest')
+            ->limit(25)
+            ->get();
+
+        $out = $rows->map(function ($r) {
+            $cest = $r->cest;
+            if ($cest === null || $cest === '') {
+                $cest = null;
+            } else {
+                $cest = (string) $cest;
+            }
+
+            return [
+                'ncm' => (string) $r->ncm,
+                'cest' => $cest,
+                'use_count' => (int) $r->use_count,
+            ];
+        })->all();
+
+        return $this->sendResponse($out);
+    }
+
+    /**
      * Busca um produto da loja por código de barras, SKU, referência ou ID (PDV / venda rápida).
      */
     public function resolve(Request $request)
