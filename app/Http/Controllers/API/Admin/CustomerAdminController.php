@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API\Admin;
 
 use App\Http\Controllers\API\BaseController;
 use App\Models\Address;
+use App\Models\City;
 use App\Models\Customer;
 use App\Models\Person;
 use App\Models\User;
@@ -95,6 +96,113 @@ class CustomerAdminController extends BaseController
             ->firstOrFail();
 
         return $this->sendResponse($customer, '', 201);
+    }
+
+    /**
+     * Cadastro mínimo (CPF/CNPJ, nome, telefone) para venda de balcão / quick sale.
+     * Preenche endereço e e-mail padrão no servidor.
+     */
+    public function storeQuick(Request $request)
+    {
+        $nifDigits = preg_replace('/\D+/', '', (string) $request->input('nif', ''));
+        $name = trim((string) $request->input('name', ''));
+        $phone = trim((string) $request->input('phone', ''));
+
+        $validator = Validator::make(
+            [
+                'nif' => $nifDigits,
+                'name' => $name,
+                'phone' => $phone,
+            ],
+            [
+                'nif' => ['required', 'string', new CpfCnpj, Rule::unique('people', 'nif')],
+                'name' => ['required', 'string', 'max:30'],
+                'phone' => ['required', 'string', 'min:10', 'max:20'],
+            ],
+            [
+                'nif.unique' => 'Este CPF/CNPJ já está cadastrado. Selecione o cliente na lista acima.',
+            ]
+        );
+
+        if ($validator->fails()) {
+            return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
+        }
+
+        $tenantId = $this->tenantId($request);
+
+        $cityId = (int) $request->input('city_id', 0);
+        if ($cityId <= 0) {
+            $cityId = (int) City::orderBy('id')->value('id');
+        }
+        if ($cityId <= 0) {
+            return $this->sendError('Não há cidades cadastradas no sistema. Impossível criar cliente de balcão.', [], 422);
+        }
+
+        if (! City::query()->whereKey($cityId)->exists()) {
+            return $this->sendError('Cidade inválida.', [], 422);
+        }
+
+        $email = $this->makeUniqueBalcaoEmail($nifDigits, $tenantId);
+
+        $tenantIdForClosure = $tenantId;
+        $nifForQuery = $nifDigits;
+
+        DB::transaction(function () use ($name, $nifDigits, $phone, $email, $cityId, $tenantIdForClosure) {
+            $person = Person::updateOrCreate(
+                ['nif' => $nifDigits],
+                [
+                    'name' => $name,
+                    'formal_name' => $name,
+                    'nif' => $nifDigits,
+                    'email' => $email,
+                    'phone' => $phone,
+                    'street' => '—',
+                    'number' => 'S/N',
+                    'district' => 'Balcão',
+                    'zip_code' => '00000-000',
+                    'city_id' => $cityId,
+                ]
+            );
+
+            $customer = Customer::updateOrCreate(
+                ['person_id' => $person->id],
+                [
+                    'person_id' => $person->id,
+                    'origin' => 1,
+                    'status' => 1,
+                ]
+            );
+
+            User::updateOrCreate(
+                ['person_id' => $person->id],
+                [
+                    'name' => $name,
+                    'email' => $email,
+                    'password' => bcrypt($nifDigits),
+                    'is_enabled' => true,
+                ]
+            );
+
+            $customer->tenants()->syncWithoutDetaching([$tenantIdForClosure]);
+        });
+
+        $customer = Customer::person()
+            ->where('people.nif', $nifForQuery)
+            ->whereHas('tenants', fn ($q) => $q->where('tenants.id', $tenantIdForClosure))
+            ->firstOrFail();
+
+        return $this->sendResponse($customer, '', 201);
+    }
+
+    private function makeUniqueBalcaoEmail(string $nifDigits, int $tenantId): string
+    {
+        $email = sprintf('c%s.t%d@balcao.gplace', $nifDigits, $tenantId);
+        $i = 0;
+        while (Person::query()->where('email', $email)->exists() && $i < 30) {
+            $email = sprintf('c%s.t%d.%d@balcao.gplace', $nifDigits, $tenantId, ++$i);
+        }
+
+        return $email;
     }
 
     public function show(Request $request, int $id)

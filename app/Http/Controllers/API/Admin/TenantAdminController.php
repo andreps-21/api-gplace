@@ -158,12 +158,12 @@ class TenantAdminController extends BaseController
                     ->first();
 
                 if (! $newRole) {
-                    $newRole = $role->replicate();
-                    $newRole->created_at = now();
-                    $newRole->updated_at = now();
+                $newRole = $role->replicate();
+                $newRole->created_at = now();
+                $newRole->updated_at = now();
                     $newRole->name = $uniqueRoleName;
                     $newRole->tenant_id = $tenant->id;
-                    $newRole->save();
+                $newRole->save();
                 }
 
                 $newRole->permissions()->sync($role->permissions);
@@ -221,7 +221,7 @@ class TenantAdminController extends BaseController
             if ($user) {
                 $oldEmail = (string) $user->email;
                 if (isset($validated['status'])) {
-                    $user->is_enabled = (int) $validated['status'] === 1;
+                $user->is_enabled = (int) $validated['status'] === 1;
                 }
                 $user->name = $validated['name'];
                 $user->email = $validated['email'];

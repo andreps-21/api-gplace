@@ -95,6 +95,68 @@ class ProductAdminController extends BaseController
         return $this->sendResponse($query->paginate($perPage));
     }
 
+    /**
+     * Busca um produto da loja por código de barras, SKU, referência ou ID (PDV / venda rápida).
+     */
+    public function resolve(Request $request)
+    {
+        $storeId = $this->storeId($request);
+        $code = trim((string) $request->query('code', ''));
+        if ($code === '') {
+            return $this->sendError('Informe o código.', ['code' => ['Obrigatório.']], 422);
+        }
+
+        $base = Product::query()
+            ->with(['images' => function ($q) {
+                $q->orderBy('id');
+            }])
+            ->info()
+            ->where('products.store_id', $storeId)
+            ->where('products.is_enabled', true);
+
+        $product = (clone $base)->where(function ($q) use ($code) {
+            $q->where('products.sku', $code)
+                ->orWhere('products.reference', $code);
+            if (ctype_digit($code)) {
+                $q->orWhere('products.id', (int) $code);
+            }
+        })->first();
+
+        if (! $product) {
+            $like = '%'.$code.'%';
+            $product = (clone $base)->where(function ($q) use ($like) {
+                $q->where('products.sku', 'LIKE', $like)
+                    ->orWhere('products.reference', 'LIKE', $like)
+                    ->orWhere('products.commercial_name', 'LIKE', $like);
+            })->orderBy('products.commercial_name')->first();
+        }
+
+        if (! $product) {
+            return $this->sendError('Produto não encontrado.', [], 404);
+        }
+
+        $price = (float) $product->price;
+        if ((float) $product->promotion_price > 0) {
+            $price = (float) $product->promotion_price;
+        }
+
+        $imageUrl = null;
+        if ($product->images->isNotEmpty()) {
+            $imageUrl = asset($product->images->first()->name);
+        }
+
+        return $this->sendResponse([
+            'id' => $product->id,
+            'reference' => $product->reference,
+            'sku' => $product->sku,
+            'commercial_name' => $product->commercial_name,
+            'um' => $product->um ?? 'UN',
+            'price' => $price,
+            'quantity_available' => (int) $product->quantity,
+            'image_url' => $imageUrl,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $storeId = $this->storeId($request);

@@ -52,8 +52,12 @@ Route::prefix('v1')->group(function () {
             });
 
             Route::get('dashboard/stats', [App\Http\Controllers\API\DashboardController::class, 'stats']);
+            Route::get('dashboard/sales-summary', [App\Http\Controllers\API\DashboardController::class, 'salesSummary']);
+            Route::get('dashboard/recent-sales', [App\Http\Controllers\API\DashboardController::class, 'recentSales']);
             Route::get('dashboard/orders-yearly', [App\Http\Controllers\API\DashboardController::class, 'ordersYearly']);
+            Route::get('dashboard/orders-daily', [App\Http\Controllers\API\DashboardController::class, 'ordersDaily']);
             Route::get('dashboard/faturamento', [App\Http\Controllers\API\DashboardController::class, 'faturamento']);
+            Route::get('dashboard/top-products', [App\Http\Controllers\API\DashboardController::class, 'topProducts']);
             Route::get('sales', App\Http\Controllers\API\SalesListController::class);
             Route::get('establishments/stats', App\Http\Controllers\API\EstablishmentStatsController::class);
             Route::get('establishments', App\Http\Controllers\API\EstablishmentListController::class);
@@ -113,6 +117,7 @@ Route::prefix('v1')->group(function () {
                 Route::delete('tenants/{id}', [App\Http\Controllers\API\Admin\TenantAdminController::class, 'destroy']);
 
                 Route::get('customers', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'index']);
+                Route::post('customers/quick', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'storeQuick']);
                 Route::post('customers', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'store']);
                 Route::get('customers/{id}', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'show']);
                 Route::put('customers/{id}', [App\Http\Controllers\API\Admin\CustomerAdminController::class, 'update']);
@@ -136,6 +141,7 @@ Route::prefix('v1')->group(function () {
                 Route::put('salesmen/{id}', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'update']);
                 Route::delete('salesmen/{id}', [App\Http\Controllers\API\Admin\SalesmanAdminController::class, 'destroy']);
 
+                Route::get('products/resolve', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'resolve']);
                 Route::get('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'index']);
                 Route::post('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'store']);
                 Route::get('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'show']);
@@ -147,6 +153,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('stock-movements', [App\Http\Controllers\API\Admin\StockMovementAdminController::class, 'index']);
                 Route::get('stock-lots', [App\Http\Controllers\API\Admin\StockLotAdminController::class, 'index']);
                 Route::post('stock-lots', [App\Http\Controllers\API\Admin\StockLotAdminController::class, 'store']);
+
+                Route::get('quick-sale/next-code', [App\Http\Controllers\API\Admin\QuickSaleController::class, 'nextCode']);
+                Route::post('quick-sale', [App\Http\Controllers\API\Admin\QuickSaleController::class, 'store']);
 
                 Route::get('orders', [App\Http\Controllers\API\Admin\OrderAdminController::class, 'index']);
                 Route::get('orders/{id}', [App\Http\Controllers\API\Admin\OrderAdminController::class, 'show']);

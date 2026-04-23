@@ -10,7 +10,10 @@ class PaymentMethod extends Model
 {
     const TICKET = 'Boleto';
     const CREDIT_CARD = 'CreditCard';
+    const DEBIT_CARD = 'DebitCard';
     const PIX = 'PIX';
+    /** Dinheiro / numerário (PDV, venda rápida). */
+    const CASH = 'Cash';
 
     /**
      * The table name
