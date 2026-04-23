@@ -105,19 +105,25 @@ class CustomerAdminController extends BaseController
     public function storeQuick(Request $request)
     {
         $nifDigits = preg_replace('/\D+/', '', (string) $request->input('nif', ''));
+        if ($nifDigits === '') {
+            $nifDigits = null;
+        }
         $name = trim((string) $request->input('name', ''));
-        $phone = trim((string) $request->input('phone', ''));
+        $phoneDigits = preg_replace('/\D+/', '', (string) $request->input('phone', ''));
+        if ($phoneDigits === '') {
+            $phoneDigits = null;
+        }
 
         $validator = Validator::make(
             [
                 'nif' => $nifDigits,
                 'name' => $name,
-                'phone' => $phone,
+                'phone' => $phoneDigits,
             ],
             [
-                'nif' => ['required', 'string', new CpfCnpj, Rule::unique('people', 'nif')],
+                'nif' => ['nullable', 'string', new CpfCnpj, Rule::unique('people', 'nif')],
                 'name' => ['required', 'string', 'max:30'],
-                'phone' => ['required', 'string', 'min:10', 'max:20'],
+                'phone' => ['nullable', 'string', 'min:10', 'max:20'],
             ],
             [
                 'nif.unique' => 'Este CPF/CNPJ já está cadastrado. Selecione o cliente na lista acima.',
@@ -142,27 +148,42 @@ class CustomerAdminController extends BaseController
             return $this->sendError('Cidade inválida.', [], 422);
         }
 
-        $email = $this->makeUniqueBalcaoEmail($nifDigits, $tenantId);
-
         $tenantIdForClosure = $tenantId;
-        $nifForQuery = $nifDigits;
+        $customerId = null;
 
-        DB::transaction(function () use ($name, $nifDigits, $phone, $email, $cityId, $tenantIdForClosure) {
-            $person = Person::updateOrCreate(
-                ['nif' => $nifDigits],
-                [
+        DB::transaction(function () use ($name, $nifDigits, $phoneDigits, $cityId, $tenantIdForClosure, &$customerId) {
+            $email = $this->makeUniqueBalcaoEmail($nifDigits, $tenantIdForClosure);
+
+            if ($nifDigits) {
+                $person = Person::updateOrCreate(
+                    ['nif' => $nifDigits],
+                    [
+                        'name' => $name,
+                        'formal_name' => $name,
+                        'nif' => $nifDigits,
+                        'email' => $email,
+                        'phone' => $phoneDigits,
+                        'street' => '—',
+                        'number' => 'S/N',
+                        'district' => 'Balcão',
+                        'zip_code' => '00000-000',
+                        'city_id' => $cityId,
+                    ]
+                );
+            } else {
+                $person = Person::create([
                     'name' => $name,
                     'formal_name' => $name,
-                    'nif' => $nifDigits,
+                    'nif' => null,
                     'email' => $email,
-                    'phone' => $phone,
+                    'phone' => $phoneDigits,
                     'street' => '—',
                     'number' => 'S/N',
                     'district' => 'Balcão',
                     'zip_code' => '00000-000',
                     'city_id' => $cityId,
-                ]
-            );
+                ]);
+            }
 
             $customer = Customer::updateOrCreate(
                 ['person_id' => $person->id],
@@ -173,33 +194,39 @@ class CustomerAdminController extends BaseController
                 ]
             );
 
+            $passwordSeed = $nifDigits ?: (string) microtime(true);
             User::updateOrCreate(
                 ['person_id' => $person->id],
                 [
                     'name' => $name,
                     'email' => $email,
-                    'password' => bcrypt($nifDigits),
+                    'password' => bcrypt($passwordSeed),
                     'is_enabled' => true,
                 ]
             );
 
             $customer->tenants()->syncWithoutDetaching([$tenantIdForClosure]);
+            $customerId = $customer->id;
         });
 
         $customer = Customer::person()
-            ->where('people.nif', $nifForQuery)
+            ->where('customers.id', (int) $customerId)
             ->whereHas('tenants', fn ($q) => $q->where('tenants.id', $tenantIdForClosure))
             ->firstOrFail();
 
         return $this->sendResponse($customer, '', 201);
     }
 
-    private function makeUniqueBalcaoEmail(string $nifDigits, int $tenantId): string
+    private function makeUniqueBalcaoEmail(?string $nifDigits, int $tenantId): string
     {
-        $email = sprintf('c%s.t%d@balcao.gplace', $nifDigits, $tenantId);
+        $seed = $nifDigits ?: substr(preg_replace('/\D+/', '', (string) microtime(true)), 0, 12);
+        if ($seed === '') {
+            $seed = (string) random_int(10_000, 999_999);
+        }
+        $email = sprintf('c%s.t%d@balcao.gplace', $seed, $tenantId);
         $i = 0;
         while (Person::query()->where('email', $email)->exists() && $i < 30) {
-            $email = sprintf('c%s.t%d.%d@balcao.gplace', $nifDigits, $tenantId, ++$i);
+            $email = sprintf('c%s.t%d.%d@balcao.gplace', $seed, $tenantId, ++$i);
         }
 
         return $email;
