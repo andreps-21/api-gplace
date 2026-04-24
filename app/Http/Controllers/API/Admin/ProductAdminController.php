@@ -4,17 +4,34 @@ namespace App\Http\Controllers\API\Admin;
 
 use App\Http\Controllers\API\BaseController;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\StockMovement;
 use App\Services\Stock\StockMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class ProductAdminController extends BaseController
 {
+    private function publicImageUrl(?string $path): ?string
+    {
+        $p = trim((string) $path);
+        if ($p === '') {
+            return null;
+        }
+        // Se já vier como URL absoluta, respeitar.
+        if (preg_match('/^https?:\/\//i', $p)) {
+            return $p;
+        }
+
+        // Caminhos guardados via `store(..., 'public')` (ex.: products/xxx.webp)
+        return Storage::disk('public')->url($p);
+    }
+
     private function storeId(Request $request): int
     {
         return (int) $request->attributes->get('store')['id'];
@@ -221,10 +238,9 @@ class ProductAdminController extends BaseController
             $price = (float) $product->promotion_price;
         }
 
-        $imageUrl = null;
-        if ($product->images->isNotEmpty()) {
-            $imageUrl = asset($product->images->first()->name);
-        }
+        $imageUrl = $product->images->isNotEmpty()
+            ? $this->publicImageUrl($product->images->first()->name)
+            : null;
 
         return $this->sendResponse([
             'id' => $product->id,
@@ -293,11 +309,21 @@ class ProductAdminController extends BaseController
     public function show(Request $request, int $id)
     {
         $storeId = $this->storeId($request);
-        $product = Product::with('variation')
+        $product = Product::with([
+            'variation',
+            'images' => function ($q) {
+                $q->orderBy('id');
+            },
+        ])
             ->info()
             ->where('products.store_id', $storeId)
             ->where('products.id', $id)
             ->firstOrFail();
+
+        $imageUrl = $product->images->isNotEmpty()
+            ? $this->publicImageUrl($product->images->first()->name)
+            : null;
+        $product->setAttribute('image_url', $imageUrl);
 
         return $this->sendResponse($product);
     }
@@ -360,6 +386,11 @@ class ProductAdminController extends BaseController
 
         DB::beginTransaction();
         try {
+            // Remove ficheiros físicos antes de apagar a relação.
+            $old = $product->images()->get(['name'])->pluck('name')->filter()->all();
+            foreach ($old as $p) {
+                Storage::disk('public')->delete($p);
+            }
             $product->images()->delete();
             $product->products()->detach();
             $product->sections()->detach();
@@ -373,6 +404,51 @@ class ProductAdminController extends BaseController
         }
 
         return $this->sendResponse(null);
+    }
+
+    /**
+     * Upload/replace imagens do produto (API admin).
+     *
+     * Multipart: `images[]` (1..5). Ao enviar, substitui todas as imagens atuais.
+     */
+    public function uploadImages(Request $request, int $id)
+    {
+        $storeId = $this->storeId($request);
+        $product = Product::query()->where('store_id', $storeId)->findOrFail($id);
+
+        $validator = Validator::make($request->all(), [
+            'images' => ['required', 'array', 'min:1', 'max:5'],
+            'images.*' => ['file', 'image', 'max:5120'], // 5MB
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
+        }
+
+        DB::transaction(function () use ($request, $product) {
+            $old = $product->images()->get(['name'])->pluck('name')->filter()->all();
+            foreach ($old as $p) {
+                Storage::disk('public')->delete($p);
+            }
+            $product->images()->delete();
+
+            $files = $request->file('images', []);
+            foreach ($files as $file) {
+                if (! $file || ! $file->isValid()) {
+                    continue;
+                }
+                $upload = $file->store('products', 'public');
+                $product->images()->create(['name' => $upload]);
+            }
+        });
+
+        $product->load(['images' => fn ($q) => $q->orderBy('id')]);
+        $imageUrl = $product->images->isNotEmpty()
+            ? $this->publicImageUrl($product->images->first()->name)
+            : null;
+        $product->setAttribute('image_url', $imageUrl);
+
+        return $this->sendResponse($product->fresh()->load(['images']), 'Imagens actualizadas.');
     }
 
     /**

@@ -147,6 +147,8 @@ Route::prefix('v1')->group(function () {
                 Route::post('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'store']);
                 Route::get('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'show']);
                 Route::put('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'update']);
+                /** Upload/replace imagens do produto (multipart: images[]). */
+                Route::post('products/{id}/images', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'uploadImages']);
                 Route::delete('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'destroy']);
 
                 Route::get('warehouses', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'index']);
