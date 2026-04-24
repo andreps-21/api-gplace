@@ -84,32 +84,68 @@ class ProductAdminController extends BaseController
         $storeId = $this->storeId($request);
         $perPage = min(100, max(5, (int) $request->query('per_page', 15)));
 
-        $query = Product::with('variation')
+        $query = Product::with([
+            'variation',
+            'images' => function ($q) {
+                $q->orderBy('id');
+            },
+        ])
             ->info()
             ->where('products.store_id', $storeId)
-            ->when($request->has('is_enabled'), function ($q) use ($request) {
-                $q->where('products.is_enabled', $request->boolean('is_enabled'));
-            })
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $s = $request->query('search');
-                $q->where('products.commercial_name', 'LIKE', "%{$s}%");
-            })
-            ->when($request->filled('section_id'), function ($q) use ($request) {
-                $q->where('products.section_id', (int) $request->query('section_id'));
-            })
-            ->when($request->filled('brand_id'), function ($q) use ($request) {
-                $q->where('products.brand_id', (int) $request->query('brand_id'));
-            })
-            ->when($request->filled('type'), function ($q) use ($request) {
-                $q->where('products.type', $request->query('type'));
-            })
-            ->when($request->filled('sku'), function ($q) use ($request) {
-                $s = $request->query('sku');
-                $q->where('products.sku', 'LIKE', "%{$s}%");
-            })
+            ->tap(fn ($q) => $this->applyIndexFilters($request, $q))
             ->orderBy('products.commercial_name');
 
-        return $this->sendResponse($query->paginate($perPage));
+        $pag = $query->paginate($perPage);
+        $pag->getCollection()->transform(function ($p) {
+            try {
+                $img = null;
+                if ($p->images && $p->images->isNotEmpty()) {
+                    $img = $this->publicImageUrl($p->images->first()->name);
+                }
+                $p->setAttribute('image_url', $img);
+            } catch (\Throwable $e) {
+                $p->setAttribute('image_url', null);
+            }
+            return $p;
+        });
+
+        return $this->sendResponse($pag);
+    }
+
+    /**
+     * Métricas rápidas para cards (mesmos filtros do index).
+     */
+    public function metrics(Request $request)
+    {
+        $storeId = $this->storeId($request);
+
+        $base = Product::query()
+            ->where('products.store_id', $storeId)
+            ->tap(fn ($q) => $this->applyIndexFilters($request, $q));
+
+        $total = (clone $base)->count();
+        $ativos = (clone $base)->where('products.is_enabled', true)->count();
+        $inativos = (clone $base)->where('products.is_enabled', false)->count();
+
+        $semEstoque = (clone $base)->where('products.quantity', '<=', 0)->count();
+        $estoqueBaixo = (clone $base)
+            ->where('products.quantity', '>', 0)
+            ->whereNotNull('products.min_stock')
+            ->whereRaw('products.quantity <= products.min_stock')
+            ->count();
+
+        $comImagem = (clone $base)->whereHas('images')->count();
+        $semImagem = (clone $base)->whereDoesntHave('images')->count();
+
+        return $this->sendResponse([
+            'total' => $total,
+            'ativos' => $ativos,
+            'inativos' => $inativos,
+            'sem_estoque' => $semEstoque,
+            'estoque_baixo' => $estoqueBaixo,
+            'com_imagem' => $comImagem,
+            'sem_imagem' => $semImagem,
+        ]);
     }
 
     /**
@@ -191,6 +227,58 @@ class ProductAdminController extends BaseController
         })->all();
 
         return $this->sendResponse($out);
+    }
+
+    /**
+     * Aplica filtros do index/metrics na query.
+     */
+    private function applyIndexFilters(Request $request, $q): void
+    {
+        $q->when($request->has('is_enabled'), function ($qq) use ($request) {
+            $qq->where('products.is_enabled', $request->boolean('is_enabled'));
+        })
+            ->when($request->filled('search'), function ($qq) use ($request) {
+                $s = $request->query('search');
+                $qq->where('products.commercial_name', 'LIKE', "%{$s}%");
+            })
+            ->when($request->filled('section_id'), function ($qq) use ($request) {
+                $qq->where('products.section_id', (int) $request->query('section_id'));
+            })
+            ->when($request->filled('brand_id'), function ($qq) use ($request) {
+                $qq->where('products.brand_id', (int) $request->query('brand_id'));
+            })
+            ->when($request->filled('type'), function ($qq) use ($request) {
+                $qq->where('products.type', $request->query('type'));
+            })
+            ->when($request->filled('sku'), function ($qq) use ($request) {
+                $s = $request->query('sku');
+                $qq->where('products.sku', 'LIKE', "%{$s}%");
+            })
+            ->when($request->filled('has_image'), function ($qq) use ($request) {
+                $v = $request->query('has_image');
+                $bool = filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($bool === true) {
+                    $qq->whereHas('images');
+                } elseif ($bool === false) {
+                    $qq->whereDoesntHave('images');
+                }
+            })
+            ->when($request->filled('stock_status'), function ($qq) use ($request) {
+                $s = strtolower(trim((string) $request->query('stock_status')));
+                if ($s === 'out' || $s === 'sem' || $s === 'sem_estoque') {
+                    $qq->where('products.quantity', '<=', 0);
+                } elseif ($s === 'low' || $s === 'baixo' || $s === 'estoque_baixo') {
+                    $qq->where('products.quantity', '>', 0)
+                        ->whereNotNull('products.min_stock')
+                        ->whereRaw('products.quantity <= products.min_stock');
+                } elseif ($s === 'ok') {
+                    $qq->where('products.quantity', '>', 0)
+                        ->where(function ($qqq) {
+                            $qqq->whereNull('products.min_stock')
+                                ->orWhereRaw('products.quantity > products.min_stock');
+                        });
+                }
+            });
     }
 
     /**

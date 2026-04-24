@@ -143,6 +143,7 @@ Route::prefix('v1')->group(function () {
 
                 Route::get('products/resolve', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'resolve']);
                 Route::get('products/fiscal-suggest', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'fiscalSuggest']);
+                Route::get('products/metrics', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'metrics']);
                 Route::get('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'index']);
                 Route::post('products', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'store']);
                 Route::get('products/{id}', [App\Http\Controllers\API\Admin\ProductAdminController::class, 'show']);
