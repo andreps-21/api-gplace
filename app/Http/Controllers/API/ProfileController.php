@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Person;
 use App\Models\User;
 use App\Rules\CpfCnpj;
+use App\Support\UserRequiresFirstPassword;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +34,10 @@ class ProfileController extends BaseController
                 'permissions',
                 $data->getAllPermissions()->pluck('name')->unique()->values()->all()
             );
+            $data->load(['stores' => function ($query) {
+                $query->person();
+            }]);
+            $data->setAttribute('requires_first_password', UserRequiresFirstPassword::check($data));
         }
 
         return $this->sendResponse($data);

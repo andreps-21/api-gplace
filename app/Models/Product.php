@@ -182,6 +182,11 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class);
+    }
+
     /**
      * Scope a query to include people information.
      *

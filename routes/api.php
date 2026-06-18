@@ -39,6 +39,10 @@ Route::prefix('v1')->group(function () {
             Route::post('password/reset', App\Http\Controllers\API\ResetPasswordController::class);
         });
 
+        Route::middleware(['auth:sanctum'])->prefix('auth')->group(function () {
+            Route::post('change-first-password', App\Http\Controllers\API\ChangeFirstPasswordController::class);
+        });
+
         /*
         | Área autenticada do painel: Bearer Sanctum + loja inferida do utilizador
         | (header «app» opcional para escolher loja quando o user tem várias).
@@ -70,9 +74,10 @@ Route::prefix('v1')->group(function () {
             Route::post('notifications/dismiss', fn () => response()->json(['message' => '', 'data' => null]));
             Route::post('notifications/dismiss-all', fn () => response()->json(['message' => '', 'data' => null]));
 
-            Route::prefix('admin')->group(function () {
+            Route::prefix('admin')->middleware('admin.action.permission')->group(function () {
                 Route::get('store-settings', [App\Http\Controllers\API\Admin\StoreSettingController::class, 'show']);
                 Route::put('store-settings', [App\Http\Controllers\API\Admin\StoreSettingController::class, 'update']);
+                Route::apiResource('home-blocks', App\Http\Controllers\API\Admin\HomeBlockAdminController::class);
 
                 Route::get('parameters', [App\Http\Controllers\API\Admin\ParameterController::class, 'index']);
                 Route::post('parameters', [App\Http\Controllers\API\Admin\ParameterController::class, 'store']);
@@ -81,16 +86,39 @@ Route::prefix('v1')->group(function () {
                 Route::delete('parameters/{id}', [App\Http\Controllers\API\Admin\ParameterController::class, 'destroy']);
 
                 Route::get('store-users', App\Http\Controllers\API\Admin\StoreUserListController::class);
+                Route::post('store-users', [App\Http\Controllers\API\Admin\StoreUserAdminController::class, 'store']);
+                Route::get('store-users/{id}', [App\Http\Controllers\API\Admin\StoreUserAdminController::class, 'show'])->whereNumber('id');
+                Route::put('store-users/{id}', [App\Http\Controllers\API\Admin\StoreUserAdminController::class, 'update'])->whereNumber('id');
+                Route::delete('store-users/{id}', [App\Http\Controllers\API\Admin\StoreUserAdminController::class, 'destroy'])->whereNumber('id');
                 Route::post('store-users/attach', [App\Http\Controllers\API\Admin\StoreUserPivotController::class, 'attach']);
                 Route::delete('store-users/detach/{userId}', [App\Http\Controllers\API\Admin\StoreUserPivotController::class, 'detach']);
 
                 Route::get('store-roles', App\Http\Controllers\API\Admin\StoreRoleListController::class);
+                Route::post('store-roles', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'store']);
                 Route::get('store-roles/{id}', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'show']);
+                Route::put('store-roles/{id}', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'update']);
+                Route::delete('store-roles/{id}', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'destroy']);
                 Route::put('store-roles/{id}/permissions', [App\Http\Controllers\API\Admin\StoreRoleController::class, 'syncPermissions']);
-                Route::get('permissions', App\Http\Controllers\API\Admin\PermissionListController::class);
+                Route::get('permissions', [App\Http\Controllers\API\Admin\PermissionListController::class, 'index']);
+                Route::post('permissions', [App\Http\Controllers\API\Admin\PermissionListController::class, 'store']);
+                Route::get('permissions/{id}', [App\Http\Controllers\API\Admin\PermissionListController::class, 'show']);
+                Route::put('permissions/{id}', [App\Http\Controllers\API\Admin\PermissionListController::class, 'update']);
+                Route::delete('permissions/{id}', [App\Http\Controllers\API\Admin\PermissionListController::class, 'destroy']);
                 Route::get('product-form-meta', App\Http\Controllers\API\Admin\ProductFormMetaController::class);
-                /** Mesmo que `GET /payment-methods` do catálogo (`app`), mas com loja do `user_store` — evita 403 no painel sem `NEXT_PUBLIC_APP_TOKEN`. */
+                Route::apiResource('coupons', App\Http\Controllers\API\Admin\CouponAdminController::class);
+                Route::apiResource('business-units', App\Http\Controllers\API\Admin\BusinessUnitAdminController::class);
+                /** Lista habilitada da loja, usada por venda rápida/produtos/lojas. CRUD admin fica em payment-methods-admin. */
                 Route::get('payment-methods', [App\Http\Controllers\API\PaymentMethodController::class, 'index']);
+                Route::apiResource('payment-methods-admin', App\Http\Controllers\API\Admin\PaymentMethodAdminController::class);
+                Route::apiResource('erp', App\Http\Controllers\API\Admin\ErpAdminController::class);
+                Route::apiResource('social-medias', App\Http\Controllers\API\Admin\SocialMediaAdminController::class);
+                Route::get('size-images/options', [App\Http\Controllers\API\Admin\SizeImageAdminController::class, 'options']);
+                Route::apiResource('size-images', App\Http\Controllers\API\Admin\SizeImageAdminController::class);
+                Route::apiResource('interface-positions', App\Http\Controllers\API\Admin\InterfacePositionAdminController::class);
+                Route::get('banners/options', [App\Http\Controllers\API\Admin\BannerAdminController::class, 'options']);
+                Route::apiResource('banners', App\Http\Controllers\API\Admin\BannerAdminController::class);
+                Route::apiResource('freights', App\Http\Controllers\API\Admin\FreightAdminController::class);
+                Route::apiResource('grids', App\Http\Controllers\API\Admin\GridAdminController::class);
 
                 Route::get('store-faqs', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'index']);
                 Route::post('store-faqs', [App\Http\Controllers\API\Admin\StoreFaqController::class, 'store']);
@@ -154,9 +182,15 @@ Route::prefix('v1')->group(function () {
 
                 Route::get('warehouses', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'index']);
                 Route::post('warehouses', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'store']);
+                Route::get('warehouses/{id}', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'show']);
+                Route::put('warehouses/{id}', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'update']);
+                Route::delete('warehouses/{id}', [App\Http\Controllers\API\Admin\WarehouseAdminController::class, 'destroy']);
                 Route::get('stock-movements', [App\Http\Controllers\API\Admin\StockMovementAdminController::class, 'index']);
                 Route::get('stock-lots', [App\Http\Controllers\API\Admin\StockLotAdminController::class, 'index']);
                 Route::post('stock-lots', [App\Http\Controllers\API\Admin\StockLotAdminController::class, 'store']);
+
+                Route::apiResource('states', App\Http\Controllers\API\Admin\StateAdminController::class);
+                Route::apiResource('cities', App\Http\Controllers\API\Admin\CityAdminController::class);
 
                 Route::get('quick-sale/next-code', [App\Http\Controllers\API\Admin\QuickSaleController::class, 'nextCode']);
                 Route::post('quick-sale', [App\Http\Controllers\API\Admin\QuickSaleController::class, 'store']);
@@ -204,6 +238,14 @@ Route::prefix('v1')->group(function () {
             Route::get('salesman', [App\Http\Controllers\API\SalesmanController::class, 'index']);
 
             Route::middleware('auth:sanctum')->group(function () {
+                Route::get('cart', [App\Http\Controllers\API\CartController::class, 'index']);
+                Route::post('cart', [App\Http\Controllers\API\CartController::class, 'store']);
+                Route::delete('cart/{id}', [App\Http\Controllers\API\CartController::class, 'destroy'])->whereNumber('id');
+                Route::get('wishlist', [App\Http\Controllers\API\WishlistController::class, 'index']);
+                Route::post('wishlist', [App\Http\Controllers\API\WishlistController::class, 'store']);
+                Route::delete('wishlist/{id}', [App\Http\Controllers\API\WishlistController::class, 'destroy'])->whereNumber('id');
+                Route::get('wishlist-products', [App\Http\Controllers\API\WishlistController::class, 'references']);
+                Route::post('ratings', [App\Http\Controllers\API\RatingController::class, 'store']);
                 Route::apiResource('orders', App\Http\Controllers\API\OrderController::class)->only(['index', 'show', 'store']);
                 Route::apiResource('addresses', App\Http\Controllers\API\AddressController::class);
             });

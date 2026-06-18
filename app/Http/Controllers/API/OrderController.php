@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Coupon;
 use App\Rules\CpfCnpj;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\Customer;
 use App\Mail\SendOrderMail;
 use Illuminate\Http\Request;
@@ -50,6 +51,8 @@ class OrderController extends BaseController
             ->get();
 
 
+        $this->appendRatingFlags($data, auth()->id());
+
         return $this->sendResponse($data);
     }
 
@@ -78,6 +81,8 @@ class OrderController extends BaseController
             return $this->sendError('Você não pode acessar esse pedido.', [], 403);
         }
 
+        $this->appendRatingFlags(collect([$item]), auth()->id());
+
         return $this->sendResponse($item);
     }
 
@@ -94,6 +99,14 @@ class OrderController extends BaseController
         ValidateCoupon $validateAction,
         PixPaymentAction $pixAction,
     ) {
+        if ($request->filled('address.city_id') && ! $request->filled('address.city')) {
+            $request->merge([
+                'address' => array_merge($request->input('address', []), [
+                    'city' => $request->input('address.city_id'),
+                ]),
+            ]);
+        }
+
         $validator = $this->getValidationFactory()
             ->make(
                 $request->all(),
@@ -118,7 +131,8 @@ class OrderController extends BaseController
             try {
                 $coupon = $validateAction->execute(
                     $coupon->name,
-                    $subTotal
+                    $subTotal,
+                    $storeId
                 );
             } catch (\Throwable $th) {
                 return $this->sendError($th->getMessage(), [], 403);
@@ -307,5 +321,22 @@ class OrderController extends BaseController
         $messages = [];
 
         return !$changeMessages ? $rules : $messages;
+    }
+
+    private function appendRatingFlags($orders, ?int $userId): void
+    {
+        if (! $userId) {
+            return;
+        }
+
+        foreach ($orders as $order) {
+            foreach ($order->items ?? [] as $item) {
+                $rated = ProductReview::query()
+                    ->where('user_id', $userId)
+                    ->where('product_id', $item->product_id)
+                    ->exists();
+                $item->setAttribute('IsRating', $rated);
+            }
+        }
     }
 }

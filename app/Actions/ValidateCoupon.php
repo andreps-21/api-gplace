@@ -9,9 +9,12 @@ use Exception;
 class ValidateCoupon
 {
 
-    public function execute($coupon, $totalOrder)
+    public function execute($coupon, $totalOrder, ?int $storeId = null)
     {
-        $coupon = Coupon::where('name', $coupon)->first();
+        $coupon = Coupon::query()
+            ->where('name', $coupon)
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+            ->first();
 
         if (!$coupon) {
             throw new Exception("Cupom não encontrado.");

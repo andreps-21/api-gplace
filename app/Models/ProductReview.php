@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductReview extends Model
 {
@@ -20,8 +20,10 @@ class ProductReview extends Model
      * @var array
      */
     protected $fillable = [
-            'product_id','user_id','note',
-            'comment'
+        'product_id',
+        'user_id',
+        'rating',
+        'comment',
     ];
 
     /**
@@ -30,5 +32,13 @@ class ProductReview extends Model
      * @param \Illuminate\Database\Eloquent\Builder $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

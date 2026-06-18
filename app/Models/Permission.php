@@ -203,13 +203,18 @@ class Permission extends \Spatie\Permission\Models\Permission
                             'title' => 'Cidades',
                             'items' => [
                                 array('name' => 'cities_view', 'description' => 'Visualizar'),
-
+                                array('name' => 'cities_create', 'description' => 'Criar'),
+                                array('name' => 'cities_edit', 'description' => 'Editar'),
+                                array('name' => 'cities_delete', 'description' => 'Deletar'),
                             ]
                         ],
                         [
                             'title' => 'Estados',
                             'items' => [
                                 array('name' => 'states_view', 'description' => 'Visualizar'),
+                                array('name' => 'states_create', 'description' => 'Criar'),
+                                array('name' => 'states_edit', 'description' => 'Editar'),
+                                array('name' => 'states_delete', 'description' => 'Deletar'),
                             ]
                         ],
                     ]

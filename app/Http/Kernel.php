@@ -71,6 +71,7 @@ class Kernel extends HttpKernel
         'store' => \App\Http\Middleware\CheckStoreSession::class,
         'app' => \App\Http\Middleware\CheckAppHeader::class,
         'user_store' => \App\Http\Middleware\BindAuthenticatedUserStore::class,
+        'admin.action.permission' => \App\Http\Middleware\EnsureAdminActionPermission::class,
         'auth.integration' => \App\Http\Middleware\ValidatedToken::class,
     ];
 }

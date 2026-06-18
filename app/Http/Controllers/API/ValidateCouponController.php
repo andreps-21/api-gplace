@@ -29,7 +29,8 @@ class ValidateCouponController extends BaseController
         try {
             $coupon = $action->execute(
                 $request->name,
-                $request->total
+                $request->total,
+                $request->get('store')['id'] ?? null
             );
 
             return $this->sendResponse($coupon);

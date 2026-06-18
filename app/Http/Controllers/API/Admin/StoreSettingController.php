@@ -7,8 +7,11 @@ use App\Http\Controllers\API\BaseController;
 use App\Models\Erp;
 use App\Models\Setting;
 use App\Models\SocialMedia;
+use App\Models\Store;
 use App\Rules\CpfCnpj;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -26,9 +29,7 @@ class StoreSettingController extends BaseController
             ->with(['city.state', 'socialMedias', 'erps'])
             ->first();
 
-        if ($settings) {
-            $settings->makeVisible(['pix_info']);
-        }
+        $settings = $this->settingsWithStoreDefaults($storeId, $settings);
 
         return $this->sendResponse([
             'settings' => $settings,
@@ -90,17 +91,78 @@ class StoreSettingController extends BaseController
             'apple_ver' => ['nullable', 'string', 'max:20'],
             'android_url_store' => ['nullable', 'string', 'max:255'],
             'apple_url_store' => ['nullable', 'string', 'max:255'],
+            'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp,svg', 'max:5120'],
+            'logo_footer' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp,svg', 'max:5120'],
         ]);
 
         $validated['store_id'] = $storeId;
 
         $settings = Setting::query()->firstOrNew(['store_id' => $storeId]);
         $settings->fill($validated);
+
+        if ($request->hasFile('logo')) {
+            if ($settings->logo) {
+                Storage::disk('public')->delete($settings->logo);
+            }
+            $settings->logo = $request->file('logo')->store('store-assets/logos', 'public');
+        }
+
+        if ($request->hasFile('logo_footer')) {
+            if ($settings->logo_footer) {
+                Storage::disk('public')->delete($settings->logo_footer);
+            }
+            $settings->logo_footer = $request->file('logo_footer')->store('store-assets/logos', 'public');
+        }
+
         $settings->save();
+        Cache::forget("cms-home-{$storeId}");
 
         $settings->load(['city.state', 'socialMedias', 'erps']);
         $settings->makeVisible(['pix_info']);
+        $settings->append('logo_url');
 
         return $this->sendResponse($settings, 'Configurações atualizadas.', 200);
+    }
+
+    private function settingsWithStoreDefaults(int $storeId, ?Setting $settings): Setting
+    {
+        $store = Store::query()
+            ->with('people.city.state')
+            ->find($storeId);
+
+        $defaults = [
+            'store_id' => $storeId,
+            'name' => $store?->people?->name ?? '',
+            'full_name' => $store?->people?->formal_name ?? $store?->people?->name ?? '',
+            'nif' => $store?->people?->nif ?? '',
+            'city_id' => $store?->people?->city_id,
+            'address' => $store?->people?->street ?? $store?->people?->address ?? '',
+            'number' => $store?->people?->number ?? '',
+            'district' => $store?->people?->district ?? '',
+            'zip_code' => $store?->people?->zip_code ?? '',
+            'email' => $store?->people?->email ?? '',
+            'phone' => $store?->people?->phone ?? '',
+            'whatsapp_phone' => $store?->people?->phone ?? '',
+            'email_notification' => $store?->people?->email ?? '',
+            'status' => (string) ($store?->status ?? 1),
+            'portal_url' => url('/'),
+        ];
+
+        $settings ??= new Setting(['store_id' => $storeId]);
+
+        foreach ($defaults as $key => $value) {
+            if (($settings->{$key} === null || $settings->{$key} === '') && $value !== null && $value !== '') {
+                $settings->{$key} = $value;
+            }
+        }
+
+        if (! $settings->relationLoaded('city') && $settings->city_id) {
+            $settings->load('city.state');
+        }
+
+        $settings->makeVisible(['pix_info']);
+        $settings->append('logo_url');
+
+        return $settings;
     }
 }

@@ -6,6 +6,8 @@ use App\Http\Controllers\API\BaseController;
 use App\Http\Controllers\Controller;
 use App\Models\Section;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class SectionController extends BaseController
@@ -35,10 +37,12 @@ class SectionController extends BaseController
             return $this->sendError('Erro de Validação.', $validator->errors()->toArray(), 422);
         }
 
-        $inputs = $request->all();
+        $inputs = $validator->validated();
         $inputs['use'] = 1;
         $inputs['store_id'] = $request->get('store')['id'];
+        $inputs['image'] = $this->storeImage($request);
         Section::create($inputs);
+        $this->forgetHomeCache($request);
 
         return $this->sendResponse([], "Registro criado com sucesso.");
     }
@@ -75,8 +79,15 @@ class SectionController extends BaseController
             return $this->sendError('Erro de Validação.', $validator->errors()->toArray(), 422);
         }
 
-        $inputs = $request->all();
+        $inputs = $validator->validated();
+        if ($request->hasFile('image')) {
+            if ($section->image) {
+                Storage::disk('public')->delete($section->image);
+            }
+            $inputs['image'] = $this->storeImage($request);
+        }
         $section->fill($inputs)->save();
+        $this->forgetHomeCache($request);
 
         return $this->sendResponse([], "Registro atualizado com sucesso.");
     }
@@ -91,7 +102,11 @@ class SectionController extends BaseController
             ->firstOrFail();
 
         try {
+            if ($section->image) {
+                Storage::disk('public')->delete($section->image);
+            }
             $section->delete();
+            $this->forgetHomeCache($request);
             return $this->sendResponse([], "Registro deletado com sucesso.");
         } catch (\Exception $e) {
             return $this->sendError("Registro vinculado á outra tabela, somente poderá ser excluído se retirar o vinculo.", [], 403);
@@ -110,12 +125,31 @@ class SectionController extends BaseController
             'is_enabled' => ['required'],
             'order' => ['required', 'integer'],
             'is_home' => ['required', 'boolean'],
-            'parent_id' => [Rule::requiredIf($request->type == 'A')],
-            'order_home' => [Rule::requiredIf(boolval($request->is_home)),  'nullable', 'integer', 'min:0']
+            'parent_id' => ['nullable', Rule::requiredIf($request->type == 'A')],
+            'order_home' => [Rule::requiredIf(boolval($request->is_home)),  'nullable', 'integer', 'min:0'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp,svg', 'max:5120']
         ];
 
         $messages = [];
 
         return !$changeMessages ? $rules : $messages;
+    }
+
+    private function storeImage(Request $request): ?string
+    {
+        if (!$request->hasFile('image') || !$request->file('image')->isValid()) {
+            return null;
+        }
+
+        return $request->file('image')->store('sections', 'public');
+    }
+
+    private function forgetHomeCache(Request $request): void
+    {
+        $storeId = $request->get('store')['id'] ?? null;
+
+        if ($storeId) {
+            Cache::forget("cms-home-{$storeId}");
+        }
     }
 }

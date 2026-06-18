@@ -12,7 +12,7 @@ class CouponController extends BaseController
     public function index(Request $request)
     {
 
-        $zipCode = $request->header('zip-code');
+        $zipCode = preg_replace('/\D/', '', $request->header('zip-code') ?: $request->query('zip_code'));
 
         if (!$zipCode) {
             return $this->sendError("Favor informar seu CEP.", [], 403);
@@ -23,6 +23,7 @@ class CouponController extends BaseController
             ->first();
 
         $coupons = Coupon::query()
+            ->where('store_id', $request->get('store')['id'])
             ->when($request->has('enabled') && $request->enabled, function ($query) {
                 $query->where('start_at', '<=', now())
                     ->where('end_at', '>=', now())

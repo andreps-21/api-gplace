@@ -84,6 +84,7 @@ Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, da
 | GET | `/auth/profile` | Perfil do utilizador autenticado. |
 | PUT | `/auth/profile` | Actualiza perfil. |
 | POST | `/auth/change-password` | Alteração de password. |
+| POST | `/auth/change-first-password` | Define a primeira senha quando o perfil retorna `requires_first_password: true`. |
 | GET | `/dashboard/stats` | Estatísticas. |
 | GET | `/dashboard/faturamento` | Faturamento. |
 | GET | `/sales` | Listagem de vendas (loja resolvida por `user_store`). |
@@ -135,6 +136,14 @@ Cabeçalho **`app`** opcional (utilizadores com várias lojas). Inclui conta, da
 | GET | `/orders` | Lista pedidos do cliente autenticado na loja. |
 | GET | `/orders/{id}` | Detalhe do pedido. |
 | POST | `/orders` | Cria pedido (payload complexo: totais, `items[]`, `payment_method_id`, dados de cliente/cartão conforme meio de pagamento — ver `OrderController::rules`). **Estoque:** a API recusa o pedido (422) se não houver quantidade suficiente por produto na loja. |
+| GET | `/cart` | Carrinho do cliente autenticado na loja (`data.cart`). |
+| POST | `/cart` | Cria/atualiza item do carrinho (`product_id`, `quantity`). Quando `isButton=true`, soma à quantidade existente; caso contrário substitui a quantidade. |
+| DELETE | `/cart/{id}` | Remove item do carrinho do cliente na loja. |
+| GET | `/wishlist` | Favoritos do cliente na loja, com produto e imagens. |
+| GET | `/wishlist-products` | Referências leves de favoritos (`id`, `product_id`) para toggle rápido. |
+| POST | `/wishlist` | Adiciona produto aos favoritos (`product_id`). |
+| DELETE | `/wishlist/{id}` | Remove favorito do cliente na loja. |
+| POST | `/ratings` | Avalia um item de pedido do próprio cliente na loja (`order_item_id`, `rating`, `comment`). |
 | GET | `/addresses` | Lista moradas. |
 | POST | `/addresses` | Cria morada. |
 | GET | `/addresses/{id}` | Detalhe. |
@@ -152,8 +161,8 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 |--------|----------------|----------------|---------------|
 | Config. da loja | GET `/admin/store-settings` | PUT `/admin/store-settings` | Já existia. |
 | Parâmetros | GET `/admin/parameters` | POST/GET/PUT/DELETE `/admin/parameters` e `/{id}` | CRUD na página admin. |
-| Utilizadores da loja | GET `/admin/store-users` | POST `/admin/store-users/attach`, DELETE `/admin/store-users/detach/{userId}` | Associa utilizador existente por ID; não duplica o fluxo completo de criação de utilizador do Blade. |
-| Roles / Permissões | GET `/admin/store-roles`, GET `/admin/permissions` | — | Gestão Spatie complexa; apenas listagem. |
+| Utilizadores da loja | GET `/admin/store-users` | POST/GET/PUT/DELETE `/admin/store-users` e `/{id}`, attach/detach | Cria/edita utilizador + pessoa + role, associa à loja e permite gerir lojas vinculadas do tenant. |
+| Roles / Permissões | GET `/admin/store-roles`, GET `/admin/permissions` | CRUD `/admin/store-roles`, CRUD `/admin/permissions`, PUT `/admin/store-roles/{id}/permissions` | Gestão Spatie via API admin. Roles globais continuam protegidas para administradores de plataforma. |
 | FAQ | GET `/admin/store-faqs` | POST/GET/PUT/DELETE `/admin/store-faqs` e `/{id}` | CRUD na página admin. |
 | Catálogos | GET `/admin/store-catalogs` | POST/GET/PUT/DELETE `/admin/store-catalogs` e `/{id}` | CRUD JSON; upload de imagem opcional via multipart no mesmo controlador Laravel. |
 | Tokens | GET `/admin/tokens` | POST/GET/PUT/DELETE `/admin/tokens` e `/{id}` | `store_id` omissão → loja do contexto (`user_store`); criação devolve `access_token_plain` uma vez. |
@@ -163,9 +172,15 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | Lojas | GET `/admin/stores` | POST/GET/PUT/DELETE `/admin/stores` e `/{id}` | API completa; `paymentMethods` opcional em create/update. |
 | Vendedores | GET `/admin/salesmen` | POST/GET/PUT/DELETE `/admin/salesmen` e `/{id}` | API alinhada ao Blade (person + pivot loja + role vendedor no create). |
 | Produtos | GET `/admin/products` | POST/GET/PUT/DELETE `/admin/products` e `/{id}` | `quantity` (inteiro ≥ 0), **`min_stock`** opcional (alerta de stock baixo na UI), **`stock_change_note`** opcional ao ajustar quantidade; movimentos em `stock_movements`. |
-| Armazéns | GET/POST `/admin/warehouses` | — | Base multi-armazém (opção C); nome, `code`, `is_default`. |
-| Movimentos de stock | GET `/admin/stock-movements` | — | Query **`product_id`** (obrigatório), `per_page`; tipos: `admin_create`, `admin_adjust`, `order_sale`, `lot_receipt`. |
-| Lotes (FIFO / documento) | GET/POST `/admin/stock-lots` | — | Query **`product_id`** em GET; POST aumenta `products.quantity` e cria lote (`document_reference`, `warehouse_id`, `unit_cost`, `received_at`). Consumo FIFO por linha de pedido ainda não desconta `quantity_remaining` do lote (evolução futura). |
+| Armazéns | GET/POST `/admin/warehouses` | GET/PUT/DELETE `/admin/warehouses/{id}` | Base multi-armazém (opção C); nome, `code`, `is_default`. |
+| Movimentos de stock | GET `/admin/stock-movements` | — | `product_id` opcional; sem ele lista movimentos recentes da loja. Tipos: `admin_create`, `admin_adjust`, `order_sale`, `lot_receipt`. |
+| Lotes (FIFO / documento) | GET/POST `/admin/stock-lots` | — | `product_id` opcional em GET; POST aumenta `products.quantity` e cria lote (`document_reference`, `warehouse_id`, `unit_cost`, `received_at`). Consumo FIFO por linha de pedido ainda não desconta `quantity_remaining` do lote (evolução futura). |
+| Estados / Cidades | GET `/admin/states`, GET `/admin/cities` | CRUD `/admin/states`, CRUD `/admin/cities` | Administração das referências usadas nos formulários de pessoas/lojas. |
+| Cupons | GET `/admin/coupons` | CRUD `/admin/coupons` | Escopo da loja activa; devolve também `business_units`, `sponsors` e `applies` para formulário. |
+| Unidades de negócio | GET `/admin/business-units` | CRUD `/admin/business-units` | Escopo do tenant da loja activa; usa cidade e faixa de CEP. |
+| Formas de pagamento | GET `/admin/payment-methods-admin` | CRUD `/admin/payment-methods-admin` | CRUD global. `GET /admin/payment-methods` continua como leitura de métodos habilitados da loja para venda/produtos. |
+| ERP | GET `/admin/erp` | CRUD `/admin/erp` | CRUD global simples. |
+| Redes sociais | GET `/admin/social-medias` | CRUD `/admin/social-medias` | CRUD global simples; `icon` pode ser path/string no JSON. |
 
 **Rotas (detalhe)**  
 | Método | Path | Descrição |
@@ -175,10 +190,14 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | GET/POST | `/admin/parameters`, `/admin/parameters/{id}` | Lista e cria. |
 | GET/PUT/DELETE | `/admin/parameters/{id}` | Detalhe, actualização, remoção. |
 | GET | `/admin/store-users` | Utilizadores da loja (`page`, `per_page`, `search`). |
+| POST | `/admin/store-users` | Cria utilizador e associa à loja do contexto ou `store_ids`. Campos principais: `name`, `email`, `nif`, `phone`, `city_id`, `role_id`, `store_ids`, `password`, `password_confirmation`. |
+| GET/PUT/DELETE | `/admin/store-users/{id}` | Detalhe, edição e remoção/remoção dos vínculos do utilizador nas lojas do tenant. |
 | POST | `/admin/store-users/attach` | Corpo `{ "user_id": number }` — associa à loja do contexto (`user_store`). |
 | DELETE | `/admin/store-users/detach/{userId}` | Remove pivot loja–utilizador. |
 | GET | `/admin/store-roles` | Roles Spatie (`page`, `per_page`, `search`). |
-| GET | `/admin/permissions` | Permissões Spatie paginadas. |
+| POST/GET/PUT/DELETE | `/admin/store-roles`, `/admin/store-roles/{id}` | CRUD de roles do tenant; `permission_ids` sincroniza permissões no create/update. |
+| PUT | `/admin/store-roles/{id}/permissions` | Sincronização total de permissões por `permission_ids`. |
+| GET/POST/PUT/DELETE | `/admin/permissions`, `/admin/permissions/{id}` | CRUD de permissões Spatie. |
 | GET/POST | `/admin/store-faqs`, `/admin/store-faqs/{id}` | FAQ da loja: lista, cria, detalhe. |
 | PUT/DELETE | `/admin/store-faqs/{id}` | Actualiza / remove. |
 | GET/POST | `/admin/store-catalogs`, `/admin/store-catalogs/{id}` | Catálogos da loja. |
@@ -199,10 +218,22 @@ Migração das áreas de **configuração** e **gerenciamento** do Blade. O esco
 | PUT/DELETE | `/admin/salesmen/{id}` | Actualização / remoção. |
 | GET/POST | `/admin/products`, `/admin/products/{id}` | Produtos da loja; resposta inclui **`quantity`** (saldo em estoque). |
 | PUT/DELETE | `/admin/products/{id}` | Actualização / remoção; corpo inclui **`quantity`** (inteiro ≥ 0). |
+| GET/POST | `/admin/coupons`, `/admin/coupons/{id}` | Cupons da loja. |
+| PUT/DELETE | `/admin/coupons/{id}` | Actualização / remoção. |
+| GET/POST | `/admin/business-units`, `/admin/business-units/{id}` | Unidades de negócio do tenant. |
+| PUT/DELETE | `/admin/business-units/{id}` | Actualização / remoção. |
+| GET/POST | `/admin/payment-methods-admin`, `/admin/payment-methods-admin/{id}` | CRUD admin de formas de pagamento. |
+| PUT/DELETE | `/admin/payment-methods-admin/{id}` | Actualização / remoção. |
+| GET/POST | `/admin/erp`, `/admin/erp/{id}` | CRUD admin de ERP. |
+| PUT/DELETE | `/admin/erp/{id}` | Actualização / remoção. |
+| GET/POST | `/admin/social-medias`, `/admin/social-medias/{id}` | CRUD admin de redes sociais. |
+| PUT/DELETE | `/admin/social-medias/{id}` | Actualização / remoção. |
 
 **Opção C (evolução):** tabelas **`warehouses`**, **`stock_lots`** (referência documental / custo / `quantity_remaining` para FIFO futuro) e **`stock_movements`** (auditoria). **Nota fiscal eletrónica (NF-e/NFC-e)** e **consumo FIFO nos pedidos** não estão implementados — exigem motor fiscal e regras de baixa por lote.
 
 Inventário completo das telas Blade vs API/UI: **`docs/FRONTEND-BLADE-MIGRACAO.md`**.
+
+Fluxo de vinculação de ecommerce por token de loja: **`docs/ECOMMERCE-LOJA-TOKEN.md`**.
 
 ---
 

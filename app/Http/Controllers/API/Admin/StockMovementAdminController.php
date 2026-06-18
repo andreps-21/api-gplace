@@ -21,21 +21,22 @@ class StockMovementAdminController extends BaseController
         $perPage = min(100, max(5, (int) $request->query('per_page', 20)));
 
         $validator = Validator::make($request->query(), [
-            'product_id' => ['required', 'integer'],
+            'product_id' => ['nullable', 'integer'],
         ]);
 
         if ($validator->fails()) {
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
-        $productId = (int) $request->query('product_id');
-
-        Product::query()->where('store_id', $storeId)->where('id', $productId)->firstOrFail();
+        $productId = $request->query('product_id') ? (int) $request->query('product_id') : null;
+        if ($productId) {
+            Product::query()->where('store_id', $storeId)->where('id', $productId)->firstOrFail();
+        }
 
         $paginator = StockMovement::query()
-            ->with(['user:id,name', 'order:id,code'])
+            ->with(['user:id,name', 'order:id,code', 'product:id,commercial_name,sku,reference'])
             ->where('store_id', $storeId)
-            ->where('product_id', $productId)
+            ->when($productId, fn ($q) => $q->where('product_id', $productId))
             ->orderByDesc('created_at')
             ->paginate($perPage);
 

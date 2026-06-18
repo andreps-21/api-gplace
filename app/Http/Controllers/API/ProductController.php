@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Services\API\ProductService;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductReview;
 use App\Models\Section;
 use App\Models\Variation;
 use Illuminate\Http\Request;
@@ -13,13 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class ProductController extends BaseController
 {
-    protected $productService;
-
-    public function __construct(ProductService $productService)
-    {
-        $this->productService = $productService;
-    }
-
     public function index(Request $request)
     {
         $products = Product::query()
@@ -96,9 +89,7 @@ class ProductController extends BaseController
 
     public function indexTeste(Request $request)
     {
-        $products = $this->productService->search($request);
-
-        return $this->sendResponse($products);
+        return $this->index($request);
     }
 
     public function show(Request $request, $id)
@@ -132,6 +123,26 @@ class ProductController extends BaseController
             foreach ($product->products as $p) {
                 $this->addDefaultImageIfEmpty($p->images);
             }
+
+            $reviews = ProductReview::query()
+                ->with('user.people')
+                ->where('product_id', $product->id)
+                ->orderByDesc('created_at')
+                ->get();
+            $product->ratings = $reviews->map(function ($review) {
+                return [
+                    'created_at' => $review->created_at,
+                    'note' => $review->comment,
+                    'comment' => $review->comment,
+                    'rating' => (int) $review->rating,
+                    'customer' => [
+                        'people' => [
+                            'name' => $review->user?->people?->name,
+                        ],
+                    ],
+                ];
+            })->values();
+            $product->rating = $reviews->avg('rating') ?: (float) ($product->rating ?? 0);
 
         $usedVariations = $product->productsGrid
             ->flatten()

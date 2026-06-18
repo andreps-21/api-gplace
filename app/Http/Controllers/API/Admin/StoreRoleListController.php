@@ -15,6 +15,10 @@ class StoreRoleListController extends BaseController
 {
     public function __invoke(Request $request)
     {
+        if (! $request->user()?->can('roles_view')) {
+            abort(403);
+        }
+
         $store = $request->attributes->get('store');
         $storeId = (int) $store['id'];
         $tenantId = Store::query()->whereKey($storeId)->value('tenant_id');

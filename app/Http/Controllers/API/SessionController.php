@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\DevAdminPassword;
 use App\Support\LoginPasswordNormalizer;
+use App\Support\UserRequiresFirstPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -47,8 +48,9 @@ class SessionController extends BaseController
             return $this->sendError('Email ou senha inválidos', [], 401);
         }
 
-        $user->load(['people.city.state', 'stores']);
+        $user->load(['people.city.state', 'stores' => fn ($q) => $q->person()]);
         $user->loadMissing(['roles.permissions', 'permissions']);
+        $user->setAttribute('requires_first_password', UserRequiresFirstPassword::check($user));
 
         try {
             $user->setAttribute(
