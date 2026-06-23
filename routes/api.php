@@ -105,6 +105,8 @@ Route::prefix('v1')->group(function () {
                 Route::put('permissions/{id}', [App\Http\Controllers\API\Admin\PermissionListController::class, 'update']);
                 Route::delete('permissions/{id}', [App\Http\Controllers\API\Admin\PermissionListController::class, 'destroy']);
                 Route::get('product-form-meta', App\Http\Controllers\API\Admin\ProductFormMetaController::class);
+                Route::get('store-product-parameters', [App\Http\Controllers\API\Admin\StoreProductParameterController::class, 'index']);
+                Route::put('store-product-parameters', [App\Http\Controllers\API\Admin\StoreProductParameterController::class, 'update']);
                 Route::apiResource('coupons', App\Http\Controllers\API\Admin\CouponAdminController::class);
                 Route::apiResource('business-units', App\Http\Controllers\API\Admin\BusinessUnitAdminController::class);
                 /** Lista habilitada da loja, usada por venda rápida/produtos/lojas. CRUD admin fica em payment-methods-admin. */

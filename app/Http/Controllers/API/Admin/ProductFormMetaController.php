@@ -50,6 +50,7 @@ class ProductFormMetaController extends BaseController
                 ->where('is_enabled', true)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'product_field_settings' => StoreProductParameterController::effectiveFieldsForStore($storeId)->values(),
         ]);
     }
 }

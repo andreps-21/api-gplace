@@ -33,6 +33,7 @@ class EnsureAdminActionPermission
         'stock-lots' => 'products',
         'store-catalogs' => 'catalogs',
         'store-faqs' => 'faq',
+        'store-product-parameters' => 'settings',
         'store-roles' => 'roles',
         'store-settings' => 'settings',
         'store-users' => 'users',
@@ -72,7 +73,7 @@ class EnsureAdminActionPermission
 
         $base = self::RESOURCE_PERMISSIONS[$resource];
 
-        if ($resource === 'store-settings') {
+        if ($resource === 'store-settings' || $resource === 'store-product-parameters') {
             return 'settings_edit';
         }
 

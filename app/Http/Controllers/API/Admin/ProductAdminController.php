@@ -4,8 +4,10 @@ namespace App\Http\Controllers\API\Admin;
 
 use App\Http\Controllers\API\BaseController;
 use App\Models\Product;
+use App\Models\ProductAttributeValue;
 use App\Models\ProductImage;
 use App\Models\StockMovement;
+use App\Models\StoreProductFieldSetting;
 use App\Services\Stock\StockMovementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -357,6 +359,11 @@ class ProductAdminController extends BaseController
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
+        $attributeErrors = $this->validateDynamicAttributes($storeId, $request->input('attributes', []));
+        if (! empty($attributeErrors)) {
+            return $this->sendError('Erro de validação.', $attributeErrors, 422);
+        }
+
         $product = null;
         DB::transaction(function () use ($request, $storeId, $validator, &$product) {
             $validated = $validator->validated();
@@ -375,6 +382,7 @@ class ProductAdminController extends BaseController
             if ($request->has('sections')) {
                 $product->sections()->sync($request->input('sections', []));
             }
+            $this->syncDynamicAttributes($product, $request->input('attributes', []));
 
             $qty = (int) $product->quantity;
             app(StockMovementService::class)->record(
@@ -391,7 +399,7 @@ class ProductAdminController extends BaseController
         });
 
         // Resposta mínima evita 500 na serialização (ex.: relações pesadas); a listagem usa GET /admin/products.
-        return $this->sendResponse($product->fresh(), '', 201);
+        return $this->sendResponse($product->fresh()->load('attributeValues.fieldSetting'), '', 201);
     }
 
     public function show(Request $request, int $id)
@@ -399,6 +407,7 @@ class ProductAdminController extends BaseController
         $storeId = $this->storeId($request);
         $product = Product::with([
             'variation',
+            'attributeValues.fieldSetting',
             'images' => function ($q) {
                 $q->orderBy('id');
             },
@@ -412,6 +421,7 @@ class ProductAdminController extends BaseController
             ? $this->publicImageUrl($product->images->first()->name)
             : null;
         $product->setAttribute('image_url', $imageUrl);
+        $product->setAttribute('attributes', $this->formattedDynamicAttributes($product));
 
         return $this->sendResponse($product);
     }
@@ -432,6 +442,11 @@ class ProductAdminController extends BaseController
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
+        $attributeErrors = $this->validateDynamicAttributes($storeId, $request->input('attributes', []));
+        if (! empty($attributeErrors)) {
+            return $this->sendError('Erro de validação.', $attributeErrors, 422);
+        }
+
         DB::transaction(function () use ($request, $product, $validator) {
             $validated = $validator->validated();
             $note = $validated['stock_change_note'] ?? null;
@@ -446,6 +461,7 @@ class ProductAdminController extends BaseController
             if ($request->has('sections')) {
                 $product->sections()->sync($request->sections ?? []);
             }
+            $this->syncDynamicAttributes($product, $request->input('attributes', []));
 
             $product->refresh();
             $qtyAfter = (int) $product->quantity;
@@ -537,6 +553,119 @@ class ProductAdminController extends BaseController
         $product->setAttribute('image_url', $imageUrl);
 
         return $this->sendResponse($product->fresh()->load(['images']), 'Imagens actualizadas.');
+    }
+
+    private function validateDynamicAttributes(int $storeId, $attributes): array
+    {
+        $attributes = is_array($attributes) ? $attributes : [];
+        $fields = StoreProductFieldSetting::query()
+            ->where('store_id', $storeId)
+            ->where('is_fixed', false)
+            ->where('is_visible', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($fields->isEmpty()) {
+            $fields = StoreProductParameterController::effectiveFieldsForStore($storeId)
+                ->where('is_fixed', false)
+                ->where('is_visible', true)
+                ->values();
+        }
+
+        $errors = [];
+        foreach ($fields as $field) {
+            $value = $attributes[$field->field_key] ?? null;
+            if ($field->is_required && ($value === null || $value === '' || $value === [])) {
+                $errors["attributes.{$field->field_key}"] = ["{$field->label} é obrigatório."];
+                continue;
+            }
+
+            if ($value === null || $value === '' || $value === []) {
+                continue;
+            }
+
+            if (in_array($field->type, ['number', 'money'], true) && ! is_numeric($value)) {
+                $errors["attributes.{$field->field_key}"] = ["{$field->label} deve ser numérico."];
+            }
+
+            if ($field->type === 'url' && filter_var((string) $value, FILTER_VALIDATE_URL) === false) {
+                $errors["attributes.{$field->field_key}"] = ["{$field->label} deve ser uma URL válida."];
+            }
+        }
+
+        return $errors;
+    }
+
+    private function syncDynamicAttributes(Product $product, $attributes): void
+    {
+        $attributes = is_array($attributes) ? $attributes : [];
+        $fields = StoreProductParameterController::effectiveFieldsForStore((int) $product->store_id)
+            ->where('is_fixed', false)
+            ->where('is_visible', true)
+            ->values();
+
+        foreach ($fields as $field) {
+            if (! $field instanceof StoreProductFieldSetting) {
+                $field = StoreProductFieldSetting::query()->firstOrCreate(
+                    [
+                        'store_id' => (int) $product->store_id,
+                        'field_key' => $field->field_key,
+                    ],
+                    [
+                        'product_form_template_id' => $field->product_form_template_id,
+                        'label' => $field->label,
+                        'type' => $field->type,
+                        'is_fixed' => false,
+                        'is_visible' => (bool) $field->is_visible,
+                        'is_required' => (bool) $field->is_required,
+                        'show_on_ecommerce' => (bool) $field->show_on_ecommerce,
+                        'show_as_filter' => (bool) $field->show_as_filter,
+                        'options' => $field->options,
+                        'sort_order' => (int) $field->sort_order,
+                    ]
+                );
+            }
+
+            $raw = $attributes[$field->field_key] ?? null;
+            $value = is_array($raw) ? json_encode(array_values($raw)) : $raw;
+
+            if ($value === null || $value === '') {
+                ProductAttributeValue::query()
+                    ->where('product_id', $product->id)
+                    ->where('field_key', $field->field_key)
+                    ->delete();
+                continue;
+            }
+
+            ProductAttributeValue::query()->updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'field_key' => $field->field_key,
+                ],
+                [
+                    'store_product_field_setting_id' => $field->id,
+                    'value' => (string) $value,
+                ]
+            );
+        }
+    }
+
+    private function formattedDynamicAttributes(Product $product, bool $onlyPublic = false): array
+    {
+        return $product->attributeValues
+            ->filter(fn (ProductAttributeValue $value) => $value->fieldSetting && (! $onlyPublic || $value->fieldSetting->show_on_ecommerce))
+            ->map(fn (ProductAttributeValue $value) => [
+                'field_key' => $value->field_key,
+                'label' => $value->fieldSetting->label,
+                'type' => $value->fieldSetting->type,
+                'value' => $value->value,
+                'show_on_ecommerce' => (bool) $value->fieldSetting->show_on_ecommerce,
+                'show_as_filter' => (bool) $value->fieldSetting->show_as_filter,
+                'sort_order' => (int) $value->fieldSetting->sort_order,
+            ])
+            ->sortBy('sort_order')
+            ->values()
+            ->all();
     }
 
     /**

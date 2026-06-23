@@ -13,9 +13,11 @@ class TokenAdminController extends BaseController
 {
     public function index(Request $request)
     {
+        $storeId = $this->storeId($request);
         $perPage = min(100, max(5, (int) $request->query('per_page', 10)));
 
         $paginator = Token::query()
+            ->where('store_id', $storeId)
             ->orderBy('description')
             ->paginate($perPage);
 
@@ -32,16 +34,15 @@ class TokenAdminController extends BaseController
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), $this->rules());
+        $storeId = $this->storeId($request);
+        $validator = Validator::make($request->all(), $this->rules($storeId));
 
         if ($validator->fails()) {
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
         $data = $validator->validated();
-        if (empty($data['store_id']) && $request->attributes->has('store')) {
-            $data['store_id'] = (int) $request->attributes->get('store')['id'];
-        }
+        $data['store_id'] = $storeId;
         $data['access_token'] = hash('sha256', Str::random(40));
         $data['expires_at'] = now()->addYear();
 
@@ -55,9 +56,11 @@ class TokenAdminController extends BaseController
         return $this->sendResponse($item, '', 201);
     }
 
-    public function show(int $id)
+    public function show(Request $request, int $id)
     {
-        $item = Token::with('store.people')->findOrFail($id);
+        $item = Token::with('store.people')
+            ->where('store_id', $this->storeId($request))
+            ->findOrFail($id);
         $plain = $item->access_token;
         $item->setAttribute('access_token_preview', $plain ? (substr($plain, 0, 8).'…') : null);
         $item->makeHidden(['access_token']);
@@ -67,17 +70,17 @@ class TokenAdminController extends BaseController
 
     public function update(Request $request, int $id)
     {
-        $item = Token::findOrFail($id);
-        $validator = Validator::make($request->all(), $this->rules($item->id));
+        $item = Token::query()
+            ->where('store_id', $this->storeId($request))
+            ->findOrFail($id);
+        $validator = Validator::make($request->all(), $this->rules((int) $item->store_id, $item->id));
 
         if ($validator->fails()) {
             return $this->sendError('Erro de validação.', $validator->errors()->toArray(), 422);
         }
 
         $data = $validator->validated();
-        if (empty($data['store_id'])) {
-            $data['store_id'] = $item->store_id;
-        }
+        $data['store_id'] = $item->store_id;
         $item->fill($data);
         if ($request->boolean('regenerate_token')) {
             $item->access_token = hash('sha256', Str::random(40));
@@ -95,9 +98,11 @@ class TokenAdminController extends BaseController
         return $this->sendResponse($item);
     }
 
-    public function destroy(int $id)
+    public function destroy(Request $request, int $id)
     {
-        $item = Token::findOrFail($id);
+        $item = Token::query()
+            ->where('store_id', $this->storeId($request))
+            ->findOrFail($id);
 
         try {
             $item->delete();
@@ -108,11 +113,22 @@ class TokenAdminController extends BaseController
         return $this->sendResponse(null);
     }
 
-    private function rules(?int $primaryKey = null): array
+    private function rules(int $storeId, ?int $primaryKey = null): array
     {
         return [
-            'description' => ['required', 'max:50', Rule::unique('tokens', 'description')->ignore($primaryKey)],
+            'description' => [
+                'required',
+                'max:50',
+                Rule::unique('tokens', 'description')
+                    ->where(fn ($query) => $query->where('store_id', $storeId))
+                    ->ignore($primaryKey),
+            ],
             'store_id' => ['nullable', 'integer', 'exists:stores,id'],
         ];
+    }
+
+    private function storeId(Request $request): int
+    {
+        return (int) $request->attributes->get('store')['id'];
     }
 }

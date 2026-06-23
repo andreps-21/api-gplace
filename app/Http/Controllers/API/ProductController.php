@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\ProductAttributeValue;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductReview;
@@ -97,6 +98,7 @@ class ProductController extends BaseController
         $product = Product::info()
             ->with([
                 'images',
+                'attributeValues.fieldSetting',
                 'paymentMethods',
                 'variation.grid.variation',
                 'productsGrid' => function ($query) use($request) {
@@ -143,6 +145,19 @@ class ProductController extends BaseController
                 ];
             })->values();
             $product->rating = $reviews->avg('rating') ?: (float) ($product->rating ?? 0);
+            $product->attributes = $product->attributeValues
+                ->filter(fn (ProductAttributeValue $value) => $value->fieldSetting?->show_on_ecommerce)
+                ->map(fn (ProductAttributeValue $value) => [
+                    'field_key' => $value->field_key,
+                    'label' => $value->fieldSetting->label,
+                    'type' => $value->fieldSetting->type,
+                    'value' => $value->value,
+                    'show_as_filter' => (bool) $value->fieldSetting->show_as_filter,
+                    'sort_order' => (int) $value->fieldSetting->sort_order,
+                ])
+                ->sortBy('sort_order')
+                ->values()
+                ->all();
 
         $usedVariations = $product->productsGrid
             ->flatten()
