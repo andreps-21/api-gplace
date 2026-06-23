@@ -15,7 +15,7 @@ class SettingsController extends BaseController
             ->first();
 
         if ($settings) {
-            $settings->append('logo_url');
+            $settings->append(['logo_url', 'logo_footer_url', 'favicon_url']);
         }
 
         $stamps = [];

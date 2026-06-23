@@ -11,7 +11,9 @@ use App\Models\Store;
 use App\Rules\CpfCnpj;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 
 /**
@@ -64,6 +66,9 @@ class StoreSettingController extends BaseController
             'terms' => ['nullable', 'string'],
             'privacy_policy' => ['nullable', 'string'],
             'footer' => ['nullable', 'string', 'max:200'],
+            'footer_background_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'footer_text_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'brand_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'meta_tags' => ['nullable', 'string', 'max:200'],
             'pixels' => ['nullable', 'string', 'max:80'],
             'ads' => ['nullable', 'string', 'max:80'],
@@ -93,33 +98,65 @@ class StoreSettingController extends BaseController
             'apple_url_store' => ['nullable', 'string', 'max:255'],
             'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp,svg', 'max:5120'],
             'logo_footer' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp,svg', 'max:5120'],
+            'favicon' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:1024'],
         ]);
 
         $validated['store_id'] = $storeId;
 
-        $settings = Setting::query()->firstOrNew(['store_id' => $storeId]);
-        $settings->fill($validated);
+        $settings = null;
 
-        if ($request->hasFile('logo')) {
-            if ($settings->logo) {
-                Storage::disk('public')->delete($settings->logo);
+        DB::transaction(function () use ($request, $storeId, $validated, &$settings) {
+            $storeModel = Store::query()->with('people')->findOrFail($storeId);
+            $storeModel->fill([
+                'status' => $validated['status'],
+            ])->save();
+
+            $storeModel->people?->fill([
+                'name' => $validated['name'],
+                'formal_name' => $validated['full_name'],
+                'nif' => $validated['nif'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'city_id' => $validated['city_id'],
+                'street' => $validated['address'],
+                'address' => $validated['address'],
+                'zip_code' => $validated['zip_code'],
+                'number' => $validated['number'],
+                'district' => $validated['district'] ?? null,
+            ])->save();
+
+            $settings = Setting::query()->firstOrNew(['store_id' => $storeId]);
+            $settings->fill($validated);
+
+            if ($request->hasFile('logo')) {
+                if ($settings->logo) {
+                    Storage::disk('public')->delete($settings->logo);
+                }
+                $settings->logo = $request->file('logo')->store('store-assets/logos', 'public');
             }
-            $settings->logo = $request->file('logo')->store('store-assets/logos', 'public');
-        }
 
-        if ($request->hasFile('logo_footer')) {
-            if ($settings->logo_footer) {
-                Storage::disk('public')->delete($settings->logo_footer);
+            if ($request->hasFile('logo_footer')) {
+                if ($settings->logo_footer) {
+                    Storage::disk('public')->delete($settings->logo_footer);
+                }
+                $settings->logo_footer = $request->file('logo_footer')->store('store-assets/logos', 'public');
             }
-            $settings->logo_footer = $request->file('logo_footer')->store('store-assets/logos', 'public');
-        }
 
-        $settings->save();
+            if ($request->hasFile('favicon')) {
+                if ($settings->favicon) {
+                    Storage::disk('public')->delete($settings->favicon);
+                }
+                $settings->favicon = $this->storeFavicon($request->file('favicon'), $storeId);
+            }
+
+            $settings->save();
+        });
+
         Cache::forget("cms-home-{$storeId}");
 
         $settings->load(['city.state', 'socialMedias', 'erps']);
         $settings->makeVisible(['pix_info']);
-        $settings->append('logo_url');
+        $settings->append(['logo_url', 'logo_footer_url', 'favicon_url']);
 
         return $this->sendResponse($settings, 'Configurações atualizadas.', 200);
     }
@@ -130,7 +167,7 @@ class StoreSettingController extends BaseController
             ->with('people.city.state')
             ->find($storeId);
 
-        $defaults = [
+        $storeDefaults = [
             'store_id' => $storeId,
             'name' => $store?->people?->name ?? '',
             'full_name' => $store?->people?->formal_name ?? $store?->people?->name ?? '',
@@ -142,15 +179,25 @@ class StoreSettingController extends BaseController
             'zip_code' => $store?->people?->zip_code ?? '',
             'email' => $store?->people?->email ?? '',
             'phone' => $store?->people?->phone ?? '',
+            'status' => (string) ($store?->status ?? 1),
             'whatsapp_phone' => $store?->people?->phone ?? '',
             'email_notification' => $store?->people?->email ?? '',
-            'status' => (string) ($store?->status ?? 1),
+        ];
+
+        $fallbackDefaults = [
             'portal_url' => url('/'),
+            'footer_background_color' => '#1e293b',
+            'footer_text_color' => '#ffffff',
+            'brand_color' => '#0284c7',
         ];
 
         $settings ??= new Setting(['store_id' => $storeId]);
 
-        foreach ($defaults as $key => $value) {
+        foreach ($storeDefaults as $key => $value) {
+            $settings->{$key} = $value ?? '';
+        }
+
+        foreach ($fallbackDefaults as $key => $value) {
             if (($settings->{$key} === null || $settings->{$key} === '') && $value !== null && $value !== '') {
                 $settings->{$key} = $value;
             }
@@ -161,8 +208,60 @@ class StoreSettingController extends BaseController
         }
 
         $settings->makeVisible(['pix_info']);
-        $settings->append('logo_url');
+        $settings->append(['logo_url', 'logo_footer_url', 'favicon_url']);
 
         return $settings;
+    }
+
+    private function storeFavicon($file, int $storeId): string
+    {
+        $source = @imagecreatefromstring(file_get_contents($file->getRealPath()));
+
+        if (! $source) {
+            throw ValidationException::withMessages([
+                'favicon' => ['Não foi possível converter a imagem enviada para favicon.'],
+            ]);
+        }
+
+        $size = 32;
+        $canvas = imagecreatetruecolor($size, $size);
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        imagefill($canvas, 0, 0, imagecolorallocatealpha($canvas, 0, 0, 0, 127));
+
+        imagecopyresampled(
+            $canvas,
+            $source,
+            0,
+            0,
+            0,
+            0,
+            $size,
+            $size,
+            imagesx($source),
+            imagesy($source)
+        );
+
+        ob_start();
+        imagepng($canvas);
+        $png = ob_get_clean();
+
+        imagedestroy($source);
+        imagedestroy($canvas);
+
+        if ($png === false) {
+            throw ValidationException::withMessages([
+                'favicon' => ['Não foi possível gerar o favicon.'],
+            ]);
+        }
+
+        $ico = pack('vvv', 0, 1, 1)
+            . pack('CCCCvvVV', 32, 32, 0, 0, 1, 32, strlen($png), 22)
+            . $png;
+
+        $path = 'store-assets/favicons/store-' . $storeId . '-' . uniqid('', true) . '.ico';
+        Storage::disk('public')->put($path, $ico);
+
+        return $path;
     }
 }

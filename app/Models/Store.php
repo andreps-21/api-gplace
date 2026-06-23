@@ -42,6 +42,8 @@ class Store extends Model
             'people.email',
             'people.street',
             'people.zip_code',
+            'people.number',
+            'people.district',
             'people.city_id',
             DB::raw("concat(cities.title, ' - ', states.letter) as city")
         )

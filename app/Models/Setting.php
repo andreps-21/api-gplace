@@ -33,12 +33,12 @@ class Setting extends Model
         'youtube_user', 'youtube_password',
         'twitter_url', 'twitter_user',
         'twitter_password', 'status', 'pixels',
-        'ads', 'meta_tags', 'footer', 'terms',
+        'ads', 'meta_tags', 'footer', 'footer_background_color', 'footer_text_color', 'brand_color', 'terms',
         'privacy_policy', 'note', 'store_id',
         'payment_gateway', 'payment_info',
         'freight_gateway', 'freight_info',
         'portal_url', 'stamps',
-        'email_notification', 'logo_footer',
+        'email_notification', 'logo_footer', 'favicon',
         'pix_info', 'pix_gateway',
         'integration_info',
         'whatsapp_phone', 'cookies',
@@ -69,6 +69,22 @@ class Setting extends Model
             return asset("storage/{$this->logo}");
         }
         return $this->logo;
+    }
+
+    public function getLogoFooterUrlAttribute()
+    {
+        if ($this->logo_footer) {
+            return asset("storage/{$this->logo_footer}");
+        }
+        return $this->logo_footer;
+    }
+
+    public function getFaviconUrlAttribute()
+    {
+        if ($this->favicon) {
+            return asset("storage/{$this->favicon}");
+        }
+        return $this->favicon;
     }
 
     /**
